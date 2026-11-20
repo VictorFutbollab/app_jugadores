@@ -1,12 +1,37 @@
 /**
- * Validación de los formularios de acceso y perfil.
+ * Acceso del prototipo: cuentas guardadas solo en este dispositivo.
  *
- * La autenticación la hace Supabase Auth (contraseñas con bcrypt en el servidor,
- * sesiones revocables). Estas validaciones solo mejoran la experiencia: el
- * servidor vuelve a validar (formato de usuario, longitudes) y es quien decide.
+ * ⚠ No es autenticación segura: quien tenga el dispositivo puede leer IndexedDB.
+ * Sirve para diseñar el flujo. En la fase 2 se sustituye por Supabase Auth
+ * (email + contraseña o enlace mágico, verificación de email y teléfono por SMS),
+ * y la contraseña nunca se guarda en el cliente.
  */
-import type { Genero } from '../model/types'
+import type { Cuenta, Genero } from '../model/types'
 import { CATEGORIAS } from '../data/categorias'
+
+const ITERACIONES = 600_000 // recomendación OWASP para PBKDF2-SHA256
+
+const b64 = (buf: ArrayBuffer | Uint8Array) => btoa(String.fromCharCode(...new Uint8Array(buf)))
+const desdeB64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0))
+
+export async function derivar(password: string, sal: Uint8Array, iteraciones = ITERACIONES) {
+  const clave = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits'])
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: sal as BufferSource, iterations: iteraciones }, clave, 256)
+  return b64(bits)
+}
+
+export async function crearCredencial(password: string, iteraciones = ITERACIONES) {
+  const sal = crypto.getRandomValues(new Uint8Array(16))
+  return { hash: await derivar(password, sal, iteraciones), sal: b64(sal), iteraciones }
+}
+
+export async function comprobarPassword(c: Cuenta['credencial'], password: string) {
+  const h = await derivar(password, desdeB64(c.sal), c.iteraciones)
+  // comparación de longitud fija
+  let d = h.length ^ c.hash.length
+  for (let i = 0; i < Math.min(h.length, c.hash.length); i++) d |= h.charCodeAt(i) ^ c.hash.charCodeAt(i)
+  return d === 0
+}
 
 // ───────────── Validación ─────────────
 

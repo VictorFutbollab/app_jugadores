@@ -131,12 +131,9 @@ export function dorsalLibre(todos: Jugador[], equipoId: string) {
   return 1
 }
 
-/**
- * ¿Seguiría habiendo al menos un admin si la cuenta `id` pasa a ser (o deja de ser) admin?
- * Solo para avisar en la interfaz: la regla la aplica el servidor en admin_set_role.
- */
-export function quedaAlgunAdmin(cuentas: Pick<Cuenta, 'id' | 'role'>[], id: string, esAdmin: boolean) {
-  return cuentas.some((c) => (c.id === id ? esAdmin : c.role === 'admin'))
+/** ¿Seguiría habiendo al menos un admin si la cuenta `id` pasa a `esAdmin`? */
+export function quedaAlgunAdmin(cuentas: Pick<Cuenta, 'id' | 'esAdmin'>[], id: string, esAdmin: boolean) {
+  return cuentas.some((c) => (c.id === id ? esAdmin : !!c.esAdmin))
 }
 
 // ───────────── Exportación CSV (Excel en español: separador ";" y BOM) ─────────────

@@ -1,8 +1,10 @@
+import 'fake-indexeddb/auto'
 import { describe, expect, it } from 'vitest'
-import { crearDatosEjemplo, prefijarIds, USUARIO_AYUDANTE } from '../data/seed'
+import { crearDatosEjemplo, USUARIO_AYUDANTE } from '../data/seed'
 import { ITEMS_POR_DEFECTO } from '../data/items'
 import { itemsAplicables, mediaGeneral, puntuacionesPorArea, resumenJugador, serieEvolucion, ultimasPuntuaciones } from './stats'
 import { minimizar, puedeVerNota, tieneConsentimientoFicha, validarConsentimiento } from './privacy'
+import * as DB from '../db/db'
 
 const ds = crearDatosEjemplo(new Date('2026-11-19T10:00:00Z'))
 
@@ -73,23 +75,19 @@ describe('privacidad', () => {
     const propia = ds.notas.find((n) => n.autorId === USUARIO_AYUDANTE)!
     expect(puedeVerNota(ay, propia)).toBe(true)
   })
-  // El borrado completo en cascada se prueba contra PostgreSQL en supabase/tests/rls.test.ts.
-})
-
-describe('plantilla de ejemplo en la nube', () => {
-  it('prefija todos los ids y referencias sin romper las relaciones', () => {
-    const p = prefijarIds(ds, 'demo-x-')
-    const ids = new Set(p.jugadores.map((j) => j.id))
-    expect([...ids].every((id) => id.startsWith('demo-x-j-'))).toBe(true)
-    expect(p.equipos[0].id).toBe('demo-x-eq-infantil-a')
-    expect(p.jugadores.every((j) => j.equipoId === p.equipos[0].id)).toBe(true)
+  it('exportar y borrar todo lo de un jugador en un paso', async () => {
+    await DB.restablecer()
+    const id = 'j-10'
+    const exp = (await DB.exportarJugador(id)) as Record<string, unknown[]>
+    expect(exp.evaluaciones.length).toBeGreaterThan(0)
+    expect(exp.asistencias.length).toBeGreaterThan(0)
+    const n = await DB.borrarJugadorCompleto(id)
+    expect(n).toBeGreaterThan(10)
+    const todo = await DB.cargarTodo()
+    expect(todo.jugadores.find((j) => j.id === id)).toBeUndefined()
     for (const s of ['estados', 'evaluaciones', 'pruebas', 'notas', 'asistencias', 'participaciones', 'cargas'] as const) {
-      expect((p[s] as { jugadorId: string }[]).every((r) => ids.has(r.jugadorId))).toBe(true)
+      expect((todo[s] as { jugadorId: string }[]).some((r) => r.jugadorId === id)).toBe(false)
     }
-    const eventos = new Set(p.eventos.map((e) => e.id))
-    expect(p.asistencias.every((a) => eventos.has(a.eventoId))).toBe(true)
-    expect(p.evaluaciones.flatMap((e) => e.puntuaciones).every((x) => !x.itemId.startsWith('demo-'))).toBe(true)
-    expect(ds.jugadores[0].id).toBe('j-01') // no modifica el original
   })
 })
 
@@ -103,5 +101,21 @@ describe('acceso', async () => {
     expect(A.normalizarTelefono('600 12 34 56')).toBe('+34600123456')
     expect(A.normalizarTelefono('0034 600123456')).toBe('+34600123456')
   })
-  // Contraseñas, sesiones y roles: Supabase Auth + supabase/tests/rls.test.ts
+  it('la contraseña se guarda derivada y se comprueba', async () => {
+    const c = await A.crearCredencial('balon2026', 1000)
+    expect(c.hash).not.toContain('balon')
+    expect(await A.comprobarPassword(c, 'balon2026')).toBe(true)
+    expect(await A.comprobarPassword(c, 'otra')).toBe(false)
+  })
+  it('registrar actualiza equipo y permite buscar por usuario o email', async () => {
+    await DB.restablecer()
+    const ahora = new Date().toISOString()
+    await DB.guardarCuenta({ id: 'u-test', nombre: 'Ana Ruiz', usuario: 'ana', email: 'ana@club.es', telefono: '+34600123456', entidad: 'CD Ejemplo', categoria: 'alevin', equipo: 'B', genero: 'femenino', aceptaPrivacidadEn: ahora, creadoEn: ahora, actualizadoEn: ahora, credencial: await A.crearCredencial('balon2026', 1000) })
+    expect((await DB.cuentaPorUsuarioOEmail('ANA@club.es'))?.id).toBe('u-test')
+    expect(await DB.existe('usuario', 'ana')).toBe(true)
+    expect(await DB.existe('usuario', 'ana', 'u-test')).toBe(false)
+    const ds = await DB.cargarTodo()
+    expect(ds.equipos[0]).toMatchObject({ nombre: 'Alevín B', entidad: 'CD Ejemplo', modalidad: 'F7' })
+    expect(ds.miembros.find((m) => m.usuarioId === 'u-test')?.rol).toBe('entrenador_principal')
+  })
 })

@@ -1,43 +1,192 @@
 import { openDB, type IDBPDatabase } from 'idb'
+import { crearDatosEjemplo, EQUIPO_ID, type Dataset } from '../data/seed'
+import { categoria } from '../data/categorias'
+import type { Cuenta, Equipo, MiembroEquipo, Usuario } from '../model/types'
 
 /**
- * Preferencias locales del dispositivo (IndexedDB): tema, "ver como" y equipo activo.
- *
- * Aquí NO se guarda nada que dé permisos (ni rol, ni sesión, ni datos de jugadores):
- * los datos y la autorización viven en Supabase. Si alguien manipula estos ajustes
- * solo cambia lo que ve en su pantalla; el servidor sigue aplicando sus reglas.
+ * Almacenamiento local sin conexión (IndexedDB).
+ * Fase 2: esta capa se sincroniza con Supabase (cola de cambios + políticas por fila)
+ * y cifra los campos sensibles con una clave derivada de la sesión.
  */
 
-const ALMACENES_ANTIGUOS = [
+export type StoreName = keyof Dataset
+export const STORES: StoreName[] = [
   'usuarios', 'miembros', 'equipos', 'jugadores', 'estados', 'items', 'evaluaciones',
-  'pruebas', 'notas', 'eventos', 'asistencias', 'participaciones', 'cargas', 'cuentas',
+  'pruebas', 'notas', 'eventos', 'asistencias', 'participaciones', 'cargas',
 ]
+/** Almacenes con datos de un jugador concreto (para exportar y borrar a petición). */
+const POR_JUGADOR: StoreName[] = ['estados', 'evaluaciones', 'pruebas', 'notas', 'asistencias', 'participaciones', 'cargas']
+
+const KEY: Partial<Record<StoreName, string | string[]>> = { miembros: ['equipoId', 'usuarioId'] }
 
 let dbp: Promise<IDBPDatabase> | null = null
-function db() {
-  dbp ??= openDB('futbollab-jugadores', 3, {
+export function db() {
+  // v4: crea lo que falte. Así también se recuperan los navegadores que abrieron la
+  // versión de prueba con servidor (v3), que había borrado los almacenes locales.
+  dbp ??= openDB('futbollab-jugadores', 4, {
     upgrade(d) {
-      // v3: los datos pasan a Supabase. Se borran las copias locales del prototipo
-      // (incluidas las cuentas con su contraseña derivada) para no dejar datos personales en el dispositivo.
-      for (const s of ALMACENES_ANTIGUOS) if (d.objectStoreNames.contains(s)) d.deleteObjectStore(s)
+      for (const s of STORES) {
+        if (d.objectStoreNames.contains(s)) continue
+        const os = d.createObjectStore(s, { keyPath: KEY[s] ?? 'id' })
+        if (POR_JUGADOR.includes(s)) os.createIndex('jugadorId', 'jugadorId')
+      }
       if (!d.objectStoreNames.contains('ajustes')) d.createObjectStore('ajustes')
+      if (!d.objectStoreNames.contains('cuentas')) {
+        const c = d.createObjectStore('cuentas', { keyPath: 'id' })
+        c.createIndex('usuario', 'usuario', { unique: true })
+        c.createIndex('email', 'email', { unique: true })
+      }
     },
   })
   return dbp
 }
 
-export async function leerAjuste<T>(k: string): Promise<T | undefined> {
-  try {
-    return await (await db()).get('ajustes', k)
-  } catch {
-    return undefined // navegación privada o almacenamiento bloqueado: se usan los valores por defecto
-  }
+export async function cargarTodo(): Promise<Dataset> {
+  const d = await db()
+  const entries = await Promise.all(STORES.map(async (s) => [s, await d.getAll(s)] as const))
+  return Object.fromEntries(entries) as unknown as Dataset
 }
 
-export async function guardarAjuste(k: string, v: unknown) {
-  try {
-    await (await db()).put('ajustes', v, k)
-  } catch {
-    /* sin almacenamiento local: la preferencia dura hasta cerrar la pestaña */
+export async function sembrarSiVacio() {
+  const d = await db()
+  if ((await d.count('jugadores')) > 0) return false
+  await escribirDataset(crearDatosEjemplo())
+  return true
+}
+
+export async function escribirDataset(ds: Dataset) {
+  const d = await db()
+  const tx = d.transaction(STORES, 'readwrite')
+  for (const s of STORES) {
+    const os = tx.objectStore(s)
+    for (const row of ds[s] as unknown[]) os.put(row)
   }
+  await tx.done
+}
+
+/**
+ * Vuelve a cargar la plantilla de ejemplo conservando las cuentas.
+ * La cuenta indicada se guarda la última para que el equipo quede con sus datos.
+ */
+export async function restablecer(cuentaId?: string) {
+  const d = await db()
+  const tx = d.transaction(STORES, 'readwrite')
+  await Promise.all(STORES.map((s) => tx.objectStore(s).clear()))
+  await tx.done
+  await escribirDataset(crearDatosEjemplo())
+  const cuentas = (await listarCuentas()).sort((a, b) => Number(a.id === cuentaId) - Number(b.id === cuentaId))
+  for (const c of cuentas) await guardarCuenta(c)
+}
+
+export async function guardar<T>(store: StoreName, row: T) {
+  await (await db()).put(store, row)
+}
+
+export async function guardarVarios<T>(store: StoreName, rows: T[]) {
+  const d = await db()
+  const tx = d.transaction(store, 'readwrite')
+  for (const r of rows) tx.store.put(r)
+  await tx.done
+}
+
+/** Exporta todos los datos de un jugador (derecho de acceso y portabilidad, art. 15 y 20 RGPD). */
+export async function exportarJugador(jugadorId: string) {
+  const d = await db()
+  const jugador = await d.get('jugadores', jugadorId)
+  const out: Record<string, unknown> = { exportadoEn: new Date().toISOString(), jugador }
+  for (const s of POR_JUGADOR) out[s] = await d.getAllFromIndex(s, 'jugadorId', jugadorId)
+  return out
+}
+
+/**
+ * Borrado completo a petición (derecho de supresión, art. 17 RGPD).
+ * No pasa por la papelera: elimina el jugador y todo lo que cuelga de él en una transacción.
+ * Devuelve cuántos registros se han borrado.
+ */
+export async function borrarJugadorCompleto(jugadorId: string) {
+  const d = await db()
+  const tx = d.transaction(['jugadores', ...POR_JUGADOR], 'readwrite')
+  let n = 0
+  for (const s of POR_JUGADOR) {
+    const keys = await tx.objectStore(s).index('jugadorId').getAllKeys(jugadorId)
+    for (const k of keys) {
+      await tx.objectStore(s).delete(k)
+      n++
+    }
+  }
+  await tx.objectStore('jugadores').delete(jugadorId)
+  await tx.done
+  return n + 1
+}
+
+export async function leerAjuste<T>(k: string): Promise<T | undefined> {
+  return (await db()).get('ajustes', k)
+}
+export async function guardarAjuste(k: string, v: unknown) {
+  await (await db()).put('ajustes', v, k)
+}
+
+// ───────────── Cuentas (prototipo local; fase 2: Supabase Auth) ─────────────
+
+export async function cuentaPorId(id: string): Promise<Cuenta | undefined> {
+  return (await db()).get('cuentas', id)
+}
+export async function cuentaPorUsuarioOEmail(x: string): Promise<Cuenta | undefined> {
+  const d = await db()
+  const k = x.trim().toLowerCase()
+  return (await d.getFromIndex('cuentas', 'usuario', k)) ?? (await d.getFromIndex('cuentas', 'email', k))
+}
+export async function existe(campo: 'usuario' | 'email', valor: string, excepto?: string) {
+  const c: Cuenta | undefined = await (await db()).getFromIndex('cuentas', campo, valor)
+  return !!c && c.id !== excepto
+}
+
+export async function listarCuentas(): Promise<Cuenta[]> {
+  return (await db()).getAll('cuentas')
+}
+
+/**
+ * Garantiza que haya al menos un administrador: si ninguna cuenta lo es,
+ * lo pasa a ser la más antigua (migra también las cuentas creadas antes del panel de admin).
+ */
+export async function asegurarAdmin() {
+  const cuentas = await listarCuentas()
+  if (cuentas.length === 0 || cuentas.some((c) => c.esAdmin)) return
+  const primera = [...cuentas].sort((a, b) => a.creadoEn.localeCompare(b.creadoEn))[0]
+  await guardarCuenta({ ...primera, esAdmin: true })
+}
+
+/**
+ * Guarda la cuenta y la refleja en el modelo común: Usuario, miembro del equipo
+ * y datos del equipo (entidad, categoría, nombre).
+ * Si ya era miembro conserva el rol y los permisos que le haya dado el admin;
+ * si es nuevo, entra como entrenador principal.
+ */
+export async function guardarCuenta(c: Cuenta) {
+  const d = await db()
+  const tx = d.transaction(['cuentas', 'usuarios', 'miembros', 'equipos'], 'readwrite')
+  await tx.objectStore('cuentas').put(c)
+  const u: Usuario = { id: c.id, nombre: c.nombre, email: c.email, usuario: c.usuario, telefono: c.telefono, foto: c.foto ?? null }
+  await tx.objectStore('usuarios').put(u)
+  const previo: MiembroEquipo | undefined = await tx.objectStore('miembros').get([EQUIPO_ID, c.id])
+  if (!previo) {
+    const m: MiembroEquipo = { equipoId: EQUIPO_ID, usuarioId: c.id, rol: 'entrenador_principal', permisos: { verFicha: true, verNotasPrivadas: true, evaluar: true } }
+    await tx.objectStore('miembros').put(m)
+  }
+  const eq: Equipo | undefined = await tx.objectStore('equipos').get(EQUIPO_ID)
+  if (eq) {
+    const cat = categoria(c.categoria)
+    await tx.objectStore('equipos').put({
+      ...eq,
+      entidad: c.entidad.trim(),
+      categoria: cat.nombre,
+      genero: c.genero,
+      nombre: `${cat.nombre} ${c.equipo.trim()}`,
+      modalidad: cat.modalidad,
+      edadMin: cat.edadMin,
+      edadMax: cat.edadMax,
+      actualizadoEn: c.actualizadoEn,
+    } satisfies Equipo)
+  }
+  await tx.done
 }

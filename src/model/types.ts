@@ -39,16 +39,9 @@ export interface Usuario {
 export type Genero = 'masculino' | 'femenino' | 'mixto'
 
 /**
- * Rol de la aplicación, guardado en public.profiles.role (Supabase).
- * - player: usuario normal (entrenador). Todo registro nuevo lo recibe en el servidor.
- * - admin: administrador del club. Solo lo asigna otro admin o un proceso de servidor.
- * En el cliente es solo informativo: la autorización real la hacen las políticas RLS.
- */
-export type RolApp = 'player' | 'admin'
-
-/**
- * Perfil de la cuenta del entrenador (tabla public.profiles).
- * La contraseña la gestiona Supabase Auth: nunca pasa por la app ni por esta tabla.
+ * Cuenta de acceso del entrenador.
+ * Prototipo: se guarda solo en el dispositivo con la contraseña derivada (PBKDF2).
+ * Fase 2: la sustituye Supabase Auth y aquí solo queda el perfil (tabla profiles).
  */
 export interface Cuenta extends Usuario {
   usuario: string
@@ -58,10 +51,15 @@ export interface Cuenta extends Usuario {
   categoria: string // valor de CATEGORIAS
   equipo: string // "A", "B", "Blanco"…
   genero: Genero
-  aceptaPrivacidadEn: string | null
+  aceptaPrivacidadEn: string
   creadoEn: string
   actualizadoEn: string
-  role: RolApp
+  credencial: { hash: string; sal: string; iteraciones: number }
+  /**
+   * Administrador del club: entra al panel de admin (jugadores y entrenadores).
+   * Prototipo: la primera cuenta del dispositivo es admin y puede nombrar a otras.
+   */
+  esAdmin?: boolean
 }
 
 /** Pertenencia de un usuario a un equipo con un rol. Base de las políticas por fila. */

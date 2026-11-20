@@ -1,12 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useApp } from '../state/store'
 import { href, ir, volver } from '../state/router'
 import { Avatar, Cabecera, EstadoChip, Tendencia, Vacio } from '../ui/components'
 import { Icon } from '../ui/Icon'
-import { Campo, CamposEquipo } from './Acceso'
-import * as R from '../db/remote'
-import { categoria } from '../data/categorias'
-import type { Errores } from '../auth/auth'
+import { Campo } from './Acceso'
 import { ESTADO_INFO, POSICION_NOMBRE, POSICION_ORDEN, fechaCorta, fechaLarga, iniciales, num0, num1, pct, uid } from '../logic/format'
 import { tieneConsentimientoFicha, validarConsentimiento } from '../logic/privacy'
 import {
@@ -26,15 +23,11 @@ import {
   type FiltroAdmin,
   type OrdenAdmin,
 } from '../logic/admin'
-import type { Consentimiento, ContactoFamilia, Cuenta, Estado, FirmanteTipo, Genero, Jugador, MiembroEquipo, Pierna, Posicion, Rol, TipoEstado } from '../model/types'
+import type { Consentimiento, ContactoFamilia, Estado, FirmanteTipo, Jugador, MiembroEquipo, Pierna, Posicion, Rol, TipoEstado } from '../model/types'
 
 const hoyISO = () => new Date().toISOString().slice(0, 10)
 
-/**
- * Segunda barrera en la interfaz (la primera es la redirección en App.tsx).
- * La protección real está en el servidor: aunque alguien forzara esta pantalla,
- * cada lectura y escritura de administración la rechaza la base de datos.
- */
+/** Segunda barrera en la interfaz (la primera es la redirección en App.tsx). */
 function SinPermiso() {
   return (
     <>
@@ -46,42 +39,17 @@ function SinPermiso() {
 
 // ═════════════════════════ Panel ═════════════════════════
 
-export type SeccionAdmin = 'jugadores' | 'entrenadores' | 'actividad'
-
-export function Admin({ seccion = 'jugadores' }: { seccion?: SeccionAdmin }) {
-  const { esAdmin, equipos, equipoActivo, setEquipoActivo } = useApp()
+export function Admin({ seccion = 'jugadores' }: { seccion?: 'jugadores' | 'entrenadores' }) {
+  const { esAdmin } = useApp()
   if (!esAdmin) return <SinPermiso />
-  if (equipos.length === 0) {
-    return (
-      <>
-        <Cabecera titulo="Administración" sub="Todavía no hay ningún equipo" />
-        <NuevoEquipo />
-      </>
-    )
-  }
   return (
     <>
-      <Cabecera
-        titulo="Administración"
-        sub="Control de la plantilla y del cuerpo técnico"
-        accion={
-          equipos.length > 1 && (
-            <select className="selector-equipo" value={equipoActivo} onChange={(e) => setEquipoActivo(e.target.value)} aria-label="Equipo">
-              {equipos.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.nombre} · {e.entidad}
-                </option>
-              ))}
-            </select>
-          )
-        }
-      />
+      <Cabecera titulo="Administración" sub="Control de la plantilla y del cuerpo técnico" />
       <div className="segmentado admin-secciones" role="tablist" aria-label="Secciones de administración">
         {(
           [
             ['jugadores', 'Jugadores'],
             ['entrenadores', 'Entrenadores'],
-            ['actividad', 'Actividad'],
           ] as const
         ).map(([s, n]) => (
           <button key={s} role="tab" aria-selected={seccion === s} className={seccion === s ? 'on' : ''} onClick={() => ir({ nombre: 'admin', seccion: s }, true)}>
@@ -89,7 +57,7 @@ export function Admin({ seccion = 'jugadores' }: { seccion?: SeccionAdmin }) {
           </button>
         ))}
       </div>
-      {seccion === 'entrenadores' ? <Entrenadores /> : seccion === 'actividad' ? <Actividad /> : <TablaJugadores />}
+      {seccion === 'entrenadores' ? <Entrenadores /> : <TablaJugadores />}
     </>
   )
 }
@@ -684,7 +652,8 @@ export function AdminJugador({ id }: { id: string }) {
 }
 
 
-// ═════════════════════════ Entrenadores y equipos ═════════════════════════
+
+// ═════════════════════════ Entrenadores ═════════════════════════
 
 const PERMISOS: [keyof MiembroEquipo['permisos'], string][] = [
   ['verFicha', 'Ver la ficha'],
@@ -692,16 +661,14 @@ const PERMISOS: [keyof MiembroEquipo['permisos'], string][] = [
   ['verNotasPrivadas', 'Ver notas privadas'],
 ]
 
-/** Permisos con los que entra cada rol al añadirlo (luego se ajustan uno a uno). */
-const PERMISOS_POR_ROL: Record<Rol, MiembroEquipo['permisos']> = {
-  entrenador_principal: { verFicha: true, verNotasPrivadas: true, evaluar: true },
-  ayudante: { verFicha: true, verNotasPrivadas: false, evaluar: true },
-  preparador_fisico: { verFicha: true, verNotasPrivadas: false, evaluar: false },
-  coordinador: { verFicha: true, verNotasPrivadas: false, evaluar: false },
-}
-
-function useMensaje() {
+function Entrenadores() {
+  const { ds, cuentas, cuenta: yo, guardarMiembro, cambiarAdmin } = useApp()
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null)
+  const equipo = ds.equipos[0]
+  const miembros = ds.miembros
+    .filter((m) => m.equipoId === equipo.id)
+    .sort((a, b) => ROLES.indexOf(a.rol) - ROLES.indexOf(b.rol) || (ds.usuarios.find((u) => u.id === a.usuarioId)?.nombre ?? '').localeCompare(ds.usuarios.find((u) => u.id === b.usuarioId)?.nombre ?? ''))
+
   const hecho = async (p: Promise<void>, t = 'Guardado.') => {
     try {
       await p
@@ -710,74 +677,34 @@ function useMensaje() {
       setMsg({ ok: false, t: (e as Error).message })
     }
   }
-  const nodo = msg && (
-    <p className={msg.ok ? 'ok' : 'error'} role="status">
-      {msg.t}
-    </p>
-  )
-  return { hecho, nodo }
-}
-
-function FotoPerfil({ c }: { c?: Cuenta; nombre: string }) {
-  const nombre = c?.nombre ?? '?'
-  return c?.foto ? (
-    <img src={c.foto} alt="" className="avatar" width={44} height={44} />
-  ) : (
-    <span className="avatar ini" style={{ width: 44, height: 44, fontSize: 17 }} aria-hidden>
-      {iniciales(nombre, nombre.split(' ')[1] ?? '')}
-    </span>
-  )
-}
-
-function CasillaAdmin({ c, nombre, hecho }: { c: Cuenta; nombre: string; hecho: (p: Promise<void>, t?: string) => Promise<void> }) {
-  const { perfiles, cambiarAdmin } = useApp()
-  const esAdmin = c.role === 'admin'
-  const bloqueado = esAdmin && !quedaAlgunAdmin(perfiles, c.id, false)
-  return (
-    <label className="check" title={bloqueado ? 'Tiene que quedar al menos un administrador' : undefined}>
-      <input
-        type="checkbox"
-        checked={esAdmin}
-        disabled={bloqueado}
-        onChange={(e) => hecho(cambiarAdmin(c.id, e.target.checked), e.target.checked ? `${nombre} ya es administrador.` : `${nombre} ya no es administrador.`)}
-      />{' '}
-      Administrador
-    </label>
-  )
-}
-
-function Entrenadores() {
-  const { ds, perfiles, cuenta: yo, guardarMiembro, quitarMiembro } = useApp()
-  const { hecho, nodo } = useMensaje()
-  const [quitar, setQuitar] = useState<string | null>(null)
-  const [rolNuevo, setRolNuevo] = useState<Record<string, Rol>>({})
-  const equipo = ds.equipos[0]
-  const perfil = (id: string) => perfiles.find((p) => p.id === id)
-  const nombreDe = (id: string) => perfil(id)?.nombre || ds.usuarios.find((u) => u.id === id)?.nombre || 'Sin nombre'
-  const miembros = [...ds.miembros].sort((a, b) => ROLES.indexOf(a.rol) - ROLES.indexOf(b.rol) || nombreDe(a.usuarioId).localeCompare(nombreDe(b.usuarioId)))
-  const fuera = perfiles.filter((p) => !miembros.some((m) => m.usuarioId === p.id)).sort((a, b) => a.nombre.localeCompare(b.nombre))
 
   return (
     <>
       <p className="sub admin-intro">
-        {miembros.length} personas en {equipo.nombre}. El entrenador principal siempre puede todo; al resto le das solo lo que necesite. Los cambios se guardan al momento y el servidor los vuelve a comprobar.
+        {miembros.length} personas en {equipo.nombre}. El entrenador principal siempre puede todo; al resto le das solo lo que necesite. Los cambios se guardan al momento.
       </p>
-      {nodo}
+      {msg && (
+        <p className={msg.ok ? 'ok' : 'error'} role="status">
+          {msg.t}
+        </p>
+      )}
       <ul className="miembros">
         {miembros.map((m) => {
-          const c = perfil(m.usuarioId)
+          const u = ds.usuarios.find((x) => x.id === m.usuarioId)
+          const c = cuentas.find((x) => x.id === m.usuarioId)
           const principal = m.rol === 'entrenador_principal'
-          const nombre = nombreDe(m.usuarioId)
+          const nombre = u?.nombre ?? m.usuarioId
+          const bloqueaAdmin = !!c?.esAdmin && !quedaAlgunAdmin(cuentas, c.id, false)
           return (
             <li key={m.usuarioId} className="miembro">
               <div className="miembro-cab">
-                <FotoPerfil c={c} nombre={nombre} />
+                {u?.foto ? <img src={u.foto} alt="" className="avatar" width={44} height={44} /> : <span className="avatar ini" style={{ width: 44, height: 44, fontSize: 17 }} aria-hidden>{iniciales(nombre, nombre.split(' ')[1] ?? '')}</span>}
                 <div className="crece">
                   <strong>{nombre}</strong>
-                  <span className="sub">{c ? `@${c.usuario} · ${c.email}` : 'Usuario sin perfil visible'}</span>
+                  <span className="sub">{c ? `@${c.usuario} · ${c.email}` : 'Usuario de ejemplo (sin cuenta)'}</span>
                   <span className="miembro-chips">
                     {c?.id === yo.id && <span className="chip">Tú</span>}
-                    {c?.role === 'admin' && (
+                    {c?.esAdmin && (
                       <span className="chip admin">
                         <Icon n="escudo" size={13} /> Admin
                       </span>
@@ -786,7 +713,7 @@ function Entrenadores() {
                 </div>
               </div>
               <div className="miembro-controles">
-                <Campo etiqueta="Rol en el equipo">
+                <Campo etiqueta="Rol">
                   <select value={m.rol} onChange={(e) => hecho(guardarMiembro({ ...m, rol: e.target.value as Rol }), `${nombre}: ahora es ${ROL_NOMBRE[e.target.value as Rol].toLowerCase()}.`)}>
                     {ROLES.map((r) => (
                       <option key={r} value={r}>
@@ -801,190 +728,27 @@ function Entrenadores() {
                       <input type="checkbox" checked={principal || m.permisos[k]} disabled={principal} onChange={(e) => hecho(guardarMiembro({ ...m, permisos: { ...m.permisos, [k]: e.target.checked } }))} /> {n}
                     </label>
                   ))}
-                  {c && <CasillaAdmin c={c} nombre={nombre} hecho={hecho} />}
+                  {c && (
+                    <label className="check" title={bloqueaAdmin ? 'Tiene que quedar al menos un administrador' : undefined}>
+                      <input type="checkbox" checked={!!c.esAdmin} disabled={bloqueaAdmin} onChange={(e) => hecho(cambiarAdmin(c.id, e.target.checked), e.target.checked ? `${nombre} ya es administrador.` : `${nombre} ya no es administrador.`)} /> Administrador
+                    </label>
+                  )}
                 </div>
                 {principal && <p className="campo-ayuda">Como entrenador principal tiene todos los permisos.</p>}
-                {quitar === m.usuarioId ? (
-                  <div className="botones">
-                    <button className="btn" onClick={() => setQuitar(null)}>
-                      Cancelar
-                    </button>
-                    <button className="btn peligro" onClick={() => hecho(quitarMiembro(m.equipoId, m.usuarioId), `${nombre} ya no está en ${equipo.nombre}.`).then(() => setQuitar(null))}>
-                      Sí, quitar del equipo
-                    </button>
-                  </div>
-                ) : (
-                  <button className="enlace pequeno" onClick={() => setQuitar(m.usuarioId)}>
-                    Quitar del equipo
-                  </button>
-                )}
               </div>
             </li>
           )
         })}
       </ul>
-
-      <section className="bloque">
-        <h2>Cuentas que no están en este equipo</h2>
-        {fuera.length === 0 ? (
-          <p className="sub">Todas las cuentas registradas están ya en {equipo.nombre}.</p>
-        ) : (
-          <ul className="filas">
-            {fuera.map((c) => (
-              <li key={c.id}>
-                <div className="fila fila-cuenta">
-                  <FotoPerfil c={c} nombre={c.nombre} />
-                  <span className="crece">
-                    <strong>{c.nombre || c.usuario}</strong>
-                    <span className="sub">
-                      {' '}
-                      · {c.email}
-                      {c.entidad && ` · dice entrenar en ${c.entidad} (${c.equipo})`}
-                    </span>
-                  </span>
-                  <select value={rolNuevo[c.id] ?? 'ayudante'} onChange={(e) => setRolNuevo((x) => ({ ...x, [c.id]: e.target.value as Rol }))} aria-label={`Rol para ${c.nombre}`}>
-                    {ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {ROL_NOMBRE[r]}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    className="btn"
-                    onClick={() => {
-                      const rol = rolNuevo[c.id] ?? 'ayudante'
-                      return hecho(guardarMiembro({ equipoId: equipo.id, usuarioId: c.id, rol, permisos: PERMISOS_POR_ROL[rol] }), `${c.nombre} añadido a ${equipo.nombre}.`)
-                    }}
-                  >
-                    Añadir
-                  </button>
-                  <CasillaAdmin c={c} nombre={c.nombre} hecho={hecho} />
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className="nota-pie">Quien se registra entra como usuario normal y sin equipo: no ve ningún dato hasta que un administrador lo añade aquí.</p>
-      </section>
-
-      <NuevoEquipo />
-
       <section className="bloque">
         <h2>Cómo funciona</h2>
         <ul className="lista-texto">
-          <li>Los permisos y el rol de administrador se guardan y se comprueban en el servidor, no en este dispositivo.</li>
+          <li>La primera cuenta creada en este dispositivo es administradora y puede nombrar a otras.</li>
           <li>Siempre tiene que quedar al menos un administrador.</li>
-          <li>Para probar los permisos del ayudante, en Mi perfil elige «Ver la app como ayudante» (solo cambia lo que ves).</li>
-          <li>Todo cambio de jugadores, equipos, miembros y roles queda en la pestaña Actividad.</li>
+          <li>Para probar los permisos del ayudante, en Mi perfil elige «Ver la app como ayudante».</li>
+          <li>Prototipo: las cuentas viven en este dispositivo.</li>
         </ul>
       </section>
-    </>
-  )
-}
-
-/** Alta de un equipo (también la usa el primer admin, cuando aún no hay ninguno). */
-export function NuevoEquipo() {
-  const { crearEquipo, cargarEjemplo, usuarioId } = useApp()
-  const { hecho, nodo } = useMensaje()
-  const [d, setD] = useState({ entidad: '', categoria: '', equipo: 'A', genero: 'masculino' as Genero })
-  const [err, setErr] = useState<Errores>({})
-  return (
-    <section className="bloque">
-      <h2>Nuevo equipo</h2>
-      <form
-        className="form"
-        onSubmit={async (e) => {
-          e.preventDefault()
-          const v: Errores = {}
-          if (d.entidad.trim().length < 2) v.entidad = 'Escribe el club o la escuela.'
-          if (!d.categoria) v.categoria = 'Elige una categoría.'
-          if (!d.equipo.trim()) v.equipo = 'Indica el equipo (A, B…).'
-          setErr(v)
-          if (Object.values(v).some(Boolean)) return
-          const cat = categoria(d.categoria)
-          const ahora = new Date()
-          const y = ahora.getMonth() >= 6 ? ahora.getFullYear() : ahora.getFullYear() - 1
-          const iso = ahora.toISOString()
-          await hecho(
-            crearEquipo({
-              id: `eq-${uid()}`,
-              creadoEn: iso,
-              actualizadoEn: iso,
-              creadoPor: usuarioId,
-              clubId: 'club',
-              entidad: d.entidad.trim(),
-              genero: d.genero,
-              nombre: `${cat.nombre} ${d.equipo.trim()}`,
-              categoria: cat.nombre,
-              temporada: `${y}-${String((y + 1) % 100).padStart(2, '0')}`,
-              modalidad: cat.modalidad,
-              edadMin: cat.edadMin,
-              edadMax: cat.edadMax,
-            }),
-            'Equipo creado. Ahora añade a su cuerpo técnico y a sus jugadores.',
-          )
-        }}
-      >
-        <CamposEquipo d={d} err={err} set={(k, v) => setD((x) => ({ ...x, [k]: v }))} />
-        <div className="botones">
-          <button className="btn primario" type="submit">
-            Crear equipo
-          </button>
-          <button type="button" className="btn" onClick={() => hecho(cargarEjemplo(), 'Plantilla de ejemplo cargada en un equipo nuevo.')}>
-            O cargar una plantilla de ejemplo
-          </button>
-        </div>
-        {nodo}
-      </form>
-    </section>
-  )
-}
-
-// ═════════════════════════ Registro de actividad ═════════════════════════
-
-const ACCION: Record<string, string> = { INSERT: 'creó', UPDATE: 'modificó', DELETE: 'borró', CAMBIO_ROL: 'cambió el rol de' }
-const TABLA: Record<string, string> = { jugadores: 'jugador', estados: 'estado', equipos: 'equipo', miembros: 'miembro del equipo', items: 'ítem', profiles: 'cuenta' }
-
-function Actividad() {
-  const { perfiles } = useApp()
-  const [filas, setFilas] = useState<R.EntradaActividad[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  useEffect(() => {
-    R.leerActividad(100)
-      .then(setFilas)
-      .catch((e: Error) => setError(e.message))
-  }, [])
-  const quien = (id: string | null) => (id ? (perfiles.find((p) => p.id === id)?.nombre ?? 'Cuenta borrada') : 'Proceso del servidor')
-  const resumen = (x: R.EntradaActividad) => {
-    if (!x.cambios) return ''
-    if (x.accion === 'CAMBIO_ROL') {
-      const r = x.cambios.role as { antes: string; despues: string }
-      return `${r.antes} → ${r.despues}`
-    }
-    if (x.accion === 'UPDATE') return `Campos: ${Object.keys(x.cambios).join(', ')}`
-    return Object.values(x.cambios).filter((v) => typeof v === 'string' || typeof v === 'number').join(' ')
-  }
-  if (error) return <p className="error">{error}</p>
-  if (!filas) return <Vacio>Cargando…</Vacio>
-  return (
-    <>
-      <p className="sub admin-intro">Últimas 100 acciones sobre jugadores, estados, equipos, miembros y roles. Lo guarda el servidor y nadie puede editarlo ni borrarlo desde la app.</p>
-      {filas.length === 0 ? (
-        <Vacio>Todavía no hay actividad.</Vacio>
-      ) : (
-        <ul className="actividad">
-          {filas.map((x) => (
-            <li key={x.id}>
-              <span className="actividad-fecha">{new Date(x.creado_en).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-              <span>
-                <strong>{quien(x.actor)}</strong> {x.actor_es_admin && <span className="chip admin">Admin</span>} {ACCION[x.accion] ?? x.accion} {TABLA[x.tabla] ?? x.tabla}{' '}
-                <code>{x.tabla === 'profiles' ? quien(x.registro_id) : x.registro_id}</code>
-                {resumen(x) && <span className="sub"> · {resumen(x)}</span>}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
     </>
   )
 }

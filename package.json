@@ -9,21 +9,18 @@
     "build:preview": "vite build --mode preview",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:seguridad": "node scripts/probar-seguridad.mjs",
     "typecheck": "tsc -b"
   },
   "dependencies": {
     "@fontsource-variable/bricolage-grotesque": "^5.3.0",
     "@fontsource/barlow-condensed": "^5.3.0",
     "@fontsource/inter": "^5.3.0",
-    "@supabase/supabase-js": "^2.119.2",
     "idb": "^8.0.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "recharts": "^3.11.0"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.17",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

@@ -12,7 +12,7 @@ export type Ruta =
   | { nombre: 'evaluar' }
   | { nombre: 'evolucion'; id?: string }
   | { nombre: 'perfil' }
-  | { nombre: 'admin'; seccion?: 'jugadores' | 'entrenadores' | 'actividad' }
+  | { nombre: 'admin'; seccion?: 'jugadores' | 'entrenadores' }
   /** Ficha de edición del admin; id "nuevo" para dar de alta. */
   | { nombre: 'admin-jugador'; id: string }
 
@@ -31,7 +31,7 @@ export function parse(hash: string): Ruta {
       return { nombre: 'perfil' }
     case 'admin':
       if (b === 'jugador' && c) return { nombre: 'admin-jugador', id: c }
-      return { nombre: 'admin', seccion: b === 'entrenadores' || b === 'actividad' ? b : 'jugadores' }
+      return { nombre: 'admin', seccion: b === 'entrenadores' ? 'entrenadores' : 'jugadores' }
     default:
       return { nombre: 'inicio' }
   }

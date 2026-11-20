@@ -1,7 +1,10 @@
+import 'fake-indexeddb/auto'
 import { describe, expect, it } from 'vitest'
 import { crearDatosEjemplo, EQUIPO_ID } from '../data/seed'
 import { datosExternos, resumenJugador } from './stats'
 import { celdaCsv, csvJugadores, cumpleFiltro, coincideBusqueda, dorsalLibre, filaAdmin, ordenarFilas, quedaAlgunAdmin, validarJugador } from './admin'
+import * as DB from '../db/db'
+import type { Cuenta } from '../model/types'
 
 const hoy = new Date('2026-11-19T10:00:00Z')
 const ds = crearDatosEjemplo(hoy)
@@ -59,14 +62,33 @@ describe('panel de admin · exportar', () => {
   })
 })
 
-describe('panel de admin · cuentas (aviso en la interfaz; la regla real está en el servidor)', () => {
+describe('panel de admin · cuentas', () => {
+  const cuenta = (id: string, creadoEn: string, extra: Partial<Cuenta> = {}): Cuenta => ({
+    id, nombre: id, usuario: id, email: `${id}@club.es`, telefono: '+34600123456', entidad: 'CD Ejemplo', categoria: 'infantil', equipo: 'A', genero: 'mixto',
+    aceptaPrivacidadEn: creadoEn, creadoEn, actualizadoEn: creadoEn, credencial: { hash: 'x', sal: 'x', iteraciones: 1 }, ...extra,
+  })
+  it('la cuenta más antigua pasa a ser admin si no hay ninguno', async () => {
+    await DB.restablecer()
+    await DB.guardarCuenta(cuenta('u-nueva', '2026-11-02T00:00:00Z'))
+    await DB.guardarCuenta(cuenta('u-vieja', '2026-01-01T00:00:00Z'))
+    await DB.asegurarAdmin()
+    expect((await DB.listarCuentas()).filter((c) => c.esAdmin).map((c) => c.id)).toEqual(['u-vieja'])
+    await DB.asegurarAdmin() // si ya hay admin no cambia nada
+    expect((await DB.listarCuentas()).filter((c) => c.esAdmin).map((c) => c.id)).toEqual(['u-vieja'])
+  })
+  it('guardar la cuenta conserva el rol que le dio el admin', async () => {
+    const ds2 = await DB.cargarTodo()
+    const m = ds2.miembros.find((x) => x.usuarioId === 'u-nueva')!
+    await DB.guardar('miembros', { ...m, rol: 'ayudante', permisos: { verFicha: true, verNotasPrivadas: false, evaluar: false } })
+    await DB.guardarCuenta({ ...(await DB.cuentaPorId('u-nueva'))!, nombre: 'Otro nombre' })
+    const m2 = (await DB.cargarTodo()).miembros.find((x) => x.usuarioId === 'u-nueva')!
+    expect(m2.rol).toBe('ayudante')
+    expect(m2.permisos.evaluar).toBe(false)
+  })
   it('no deja quitar el último admin', () => {
-    const cs = [
-      { id: 'a', role: 'admin' as const },
-      { id: 'b', role: 'player' as const },
-    ]
+    const cs = [{ id: 'a', esAdmin: true }, { id: 'b', esAdmin: false }]
     expect(quedaAlgunAdmin(cs, 'a', false)).toBe(false)
     expect(quedaAlgunAdmin(cs, 'b', true)).toBe(true)
-    expect(quedaAlgunAdmin([...cs, { id: 'c', role: 'admin' as const }], 'a', false)).toBe(true)
+    expect(quedaAlgunAdmin([...cs, { id: 'c', esAdmin: true }], 'a', false)).toBe(true)
   })
 })

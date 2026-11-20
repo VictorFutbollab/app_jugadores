@@ -5,7 +5,19 @@ import { Cabecera } from '../ui/components'
 import { Icon } from '../ui/Icon'
 import { Campo, CamposEquipo } from './Acceso'
 import { categoria } from '../data/categorias'
-import { formatearTelefono, normalizarEmail, normalizarTelefono, normalizarUsuario, prepararFoto, validarPerfil, type DatosRegistro, type Errores } from '../auth/auth'
+import {
+  comprobarPassword,
+  crearCredencial,
+  formatearTelefono,
+  normalizarEmail,
+  normalizarTelefono,
+  normalizarUsuario,
+  prepararFoto,
+  validarPerfil,
+  type DatosRegistro,
+  type Errores,
+} from '../auth/auth'
+import * as DB from '../db/db'
 import { iniciales } from '../logic/format'
 import type { Cuenta } from '../model/types'
 
@@ -35,12 +47,12 @@ const normal = (x: Editable) =>
   })
 
 export function Perfil() {
-  const { cuenta, guardarPerfil, cerrarSesion, tema, setTema, verComo, setVerComo, cargarEjemplo, esAdmin, equipos, equipoActivo, setEquipoActivo } = useApp()
+  const { cuenta, guardarPerfil, cerrarSesion, tema, setTema, verComo, setVerComo, restablecer, esAdmin } = useApp()
   const [d, setD] = useState<Editable>(() => editable(cuenta))
   const [err, setErr] = useState<Errores>({})
-  const [estado, setEstado] = useState<'' | 'guardando' | 'guardado' | 'email'>('')
+  const [estado, setEstado] = useState<'' | 'guardando' | 'guardado'>('')
   const [errFoto, setErrFoto] = useState<string | null>(null)
-  const [ejemplo, setEjemplo] = useState<'' | 'cargando' | 'hecho' | string>('')
+  const [hecho, setHecho] = useState(false)
   const temporizador = useRef<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -53,17 +65,13 @@ export function Perfil() {
       const v = validarPerfil(d)
       const usuario = normalizarUsuario(d.usuario)
       const email = normalizarEmail(d.email)
+      if (!v.usuario && (await DB.existe('usuario', usuario, cuenta.id))) v.usuario = 'Ese usuario ya existe.'
+      if (!v.email && (await DB.existe('email', email, cuenta.id))) v.email = 'Ya hay una cuenta con ese email.'
       setErr(v)
       if (Object.values(v).some(Boolean)) return setEstado('')
       setEstado('guardando')
-      try {
-        await guardarPerfil({ ...cuenta, ...d, usuario, email, telefono: normalizarTelefono(d.telefono), nombre: d.nombre.trim(), entidad: d.entidad.trim(), equipo: d.equipo.trim() })
-        setEstado(email !== cuenta.email ? 'email' : 'guardado')
-      } catch (e) {
-        const m = (e as Error).message
-        setErr(/usuario/i.test(m) ? { usuario: m } : /email/i.test(m) ? { email: m } : { nombre: m })
-        setEstado('')
-      }
+      await guardarPerfil({ ...cuenta, ...d, usuario, email, telefono: normalizarTelefono(d.telefono), nombre: d.nombre.trim(), entidad: d.entidad.trim(), equipo: d.equipo.trim() })
+      setEstado('guardado')
     }, 700)
     return () => {
       if (temporizador.current) clearTimeout(temporizador.current)
@@ -79,15 +87,7 @@ export function Perfil() {
     <>
       <Cabecera
         titulo="Mi perfil"
-        sub={
-          estado === 'guardando'
-            ? 'Guardando…'
-            : estado === 'guardado'
-              ? 'Cambios guardados'
-              : estado === 'email'
-                ? 'Te hemos enviado un enlace para confirmar el nuevo email'
-                : 'Los cambios se guardan solos'
-        }
+        sub={estado === 'guardando' ? 'Guardando…' : estado === 'guardado' ? 'Cambios guardados' : 'Los cambios se guardan solos'}
       />
 
       <section className="perfil-cab">
@@ -153,21 +153,6 @@ export function Perfil() {
         <CambiarPassword />
       </div>
 
-      {equipos.length > 1 && (
-        <section className="bloque">
-          <h2>Equipo que estás viendo</h2>
-          <div className="campo">
-            <select value={equipoActivo} onChange={(e) => setEquipoActivo(e.target.value)} aria-label="Equipo">
-              {equipos.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.nombre} · {e.entidad}
-                </option>
-              ))}
-            </select>
-          </div>
-        </section>
-      )}
-
       {esAdmin && (
         <section className="bloque">
           <h2>Administración</h2>
@@ -215,49 +200,36 @@ export function Perfil() {
           <li>Desde los 14 años puede firmar el propio jugador (art. 7 LOPDGDD).</li>
           <li>Las familias nunca ven la ficha completa ni comparaciones con compañeros.</li>
           <li>No escribas diagnósticos médicos en estados ni notas.</li>
-          {cuenta.aceptaPrivacidadEn && <li>Aceptaste la política de privacidad el {new Date(cuenta.aceptaPrivacidadEn).toLocaleDateString('es-ES')}.</li>}
+          <li>Aceptaste la política de privacidad el {new Date(cuenta.aceptaPrivacidadEn).toLocaleDateString('es-ES')}.</li>
         </ul>
       </section>
 
-      {esAdmin && (
-        <section className="bloque">
-          <h2>Datos de ejemplo</h2>
-          <p className="sub">Crea (o sustituye) un equipo de ejemplo con una plantilla ficticia para probar la app. No toca los equipos reales.</p>
-          <div className="botones">
-            <button
-              className="btn"
-              disabled={ejemplo === 'cargando'}
-              onClick={async () => {
-                setEjemplo('cargando')
-                try {
-                  await cargarEjemplo()
-                  setEjemplo('hecho')
-                } catch (e) {
-                  setEjemplo((e as Error).message)
-                }
-              }}
-            >
-              {ejemplo === 'cargando' ? 'Cargando…' : ejemplo === 'hecho' ? 'Plantilla de ejemplo cargada' : 'Cargar plantilla de ejemplo'}
-            </button>
-          </div>
-          {ejemplo && !['cargando', 'hecho'].includes(ejemplo) && (
-            <p className="error" role="alert">
-              {ejemplo}
-            </p>
-          )}
-        </section>
-      )}
+      <section className="bloque">
+        <h2>Datos de ejemplo</h2>
+        <p className="sub">Plantilla ficticia para probar la app, guardada solo en este dispositivo.</p>
+        <div className="botones">
+          <button
+            className="btn"
+            onClick={async () => {
+              await restablecer()
+              setHecho(true)
+            }}
+          >
+            {hecho ? 'Datos restablecidos' : 'Restablecer datos de ejemplo'}
+          </button>
+        </div>
+      </section>
 
       <button className="btn peligro ancho" onClick={cerrarSesion}>
         <Icon n="salir" /> Cerrar sesión
       </button>
-      <p className="nota-pie centrado">FutbolLab Jugadores · {cuenta.role === 'admin' ? 'administrador' : 'entrenador'}</p>
+      <p className="nota-pie centrado">FutbolLab Jugadores · prototipo</p>
     </>
   )
 }
 
 function CambiarPassword() {
-  const { cambiarPassword } = useApp()
+  const { cuenta, guardarPerfil } = useApp()
   const [abierto, setAbierto] = useState(false)
   const [actual, setActual] = useState('')
   const [nueva, setNueva] = useState('')
@@ -291,12 +263,9 @@ function CambiarPassword() {
           type="button"
           className="btn primario"
           onClick={async () => {
+            if (!(await comprobarPassword(cuenta.credencial, actual))) return setMsg({ ok: false, t: 'La contraseña actual no es correcta.' })
             if (nueva.length < 8 || !/[a-zA-Z]/.test(nueva) || !/\d/.test(nueva)) return setMsg({ ok: false, t: 'La nueva necesita 8 caracteres con letras y números.' })
-            try {
-              await cambiarPassword(actual, nueva)
-            } catch (e) {
-              return setMsg({ ok: false, t: (e as Error).message })
-            }
+            await guardarPerfil({ ...cuenta, credencial: await crearCredencial(nueva) })
             setActual('')
             setNueva('')
             setMsg({ ok: true, t: 'Contraseña cambiada.' })
