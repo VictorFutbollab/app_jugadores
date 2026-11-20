@@ -1,25 +1,25 @@
+import logoUrl from '../assets/logo-futbollab.png'
+
 /**
- * Logo de FutbolLab.
- * PROVISIONAL: cuando llegue el logo oficial, se sustituye este componente
- * por un <img> del archivo en src/assets/ (un solo punto de cambio).
+ * Logo oficial de FutbolLab (el mismo de futbollab.com).
+ * `soloMarca` recorta el escudo del jugador, sin el texto.
+ * Proporción del archivo: 313 × 64 px; el escudo ocupa el primer ~31 %.
  */
+const PROPORCION = 313 / 64
+const PROPORCION_MARCA = 98 / 64
+
 export function Logo({ alto = 28, soloMarca = false, app }: { alto?: number; soloMarca?: boolean; app?: string }) {
-  const marca = (
-    <svg viewBox="0 0 32 32" height={alto} width={alto} aria-hidden>
-      <rect x="1" y="1" width="30" height="30" rx="7" fill="var(--accent)" />
-      <circle cx="16" cy="16" r="9" fill="none" stroke="var(--accent-ink)" strokeWidth="2.2" />
-      <path d="M16 11.2l4.3 3.1-1.6 5H13.3l-1.6-5z" fill="var(--accent-ink)" />
-      <path d="M16 7v4.2M24.6 13.3l-4.3 1M21.3 23.5l-2.6-4.2M10.7 23.5l2.6-4.2M7.4 13.3l4.3 1" stroke="var(--accent-ink)" strokeWidth="1.6" />
-    </svg>
-  )
-  if (soloMarca) return marca
+  if (soloMarca) {
+    return (
+      <span className="logo-marca" style={{ width: alto * PROPORCION_MARCA, height: alto }} aria-hidden>
+        <img src={logoUrl} alt="" height={alto} width={alto * PROPORCION} />
+      </span>
+    )
+  }
   return (
     <span className="logo" style={{ height: alto }} role="img" aria-label={`FutbolLab${app ? ` ${app}` : ''}`}>
-      {marca}
-      <span className="logo-txt" style={{ fontSize: alto * 0.78 }}>
-        FUTBOL<b>LAB</b>
-      </span>
-      {app && <span className="logo-app" style={{ fontSize: alto * 0.42 }}>{app}</span>}
+      <img src={logoUrl} alt="" height={alto} width={Math.round(alto * PROPORCION)} />
+      {app && <span className="logo-app" style={{ fontSize: Math.max(11, alto * 0.42) }}>{app}</span>}
     </span>
   )
 }

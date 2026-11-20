@@ -64,7 +64,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.dataset.tema = tema
-    document.querySelector('meta[name=theme-color]')?.setAttribute('content', tema === 'oscuro' ? '#0B1510' : '#F4F2EC')
+    document.querySelector('meta[name=theme-color]')?.setAttribute('content', tema === 'oscuro' ? '#0E1C2A' : '#F2F5F7')
   }, [tema])
 
   const derivados = useMemo(() => {

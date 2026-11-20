@@ -1,51 +1,55 @@
 /* ─────────────────────────────────────────────────────────────
-   FutbolLab · sistema visual común · app Jugadores (ámbar)
-   Inspiración: marcador de estadio y programa de partido.
-   Esquinas contenidas, etiquetas en versalitas, números grandes y condensados.
+   FutbolLab · sistema visual común · app Jugadores
+   Identidad de futbollab.com: azul FutbolLab #005A8C, celeste #64BDD9,
+   tinta #0E1C2A y papel #F2F5F7. Títulos en Bricolage Grotesque,
+   texto en Inter, botones en píldora y tarjetas muy redondeadas.
    ───────────────────────────────────────────────────────────── */
 :root,
 [data-tema='oscuro'] {
-  --bg: #0b1510;
-  --bg-2: #0f1a14;
-  --surface: #121f18;
-  --surface-2: #192a20;
-  --surface-3: #21362a;
-  --line: rgba(232, 240, 234, 0.08);
-  --line-2: rgba(232, 240, 234, 0.16);
-  --text: #e8efe9;
-  --text-2: #9fb0a5;
-  --text-3: #66786d;
-  --accent: #f2a541;
-  --accent-text: #f2a541;
-  --accent-ink: #1a1205;
+  --brand: #005a8c;
+  --brand-2: #0b78ae;
+  --bg: #0e1c2a;
+  --bg-2: #0b1724;
+  --surface: #142638;
+  --surface-2: #1a3046;
+  --surface-3: #233c55;
+  --line: rgba(227, 233, 238, 0.09);
+  --line-2: rgba(227, 233, 238, 0.18);
+  --text: #f2f5f7;
+  --text-2: #a9b8c5;
+  --text-3: #6f8496;
+  --accent: #64bdd9;
+  --accent-text: #64bdd9;
+  --accent-ink: #0e1c2a;
   --ok: #6cc07a;
   --danger: #ef8466;
   --warn: #e9c46a;
-  --pitch-line: rgba(232, 240, 234, 0.05);
-  --stripe: rgba(255, 255, 255, 0.014);
-  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 10px 30px -18px rgba(0, 0, 0, 0.8);
+  --pitch-line: rgba(242, 245, 247, 0.05);
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 14px 34px -20px rgba(0, 0, 0, 0.8);
+  --r-card: 18px;
+  --r-input: 14px;
+  --r-btn: 999px;
   color-scheme: dark;
 }
 [data-tema='claro'] {
-  --bg: #f4f2ec;
-  --bg-2: #efece4;
+  --bg: #f2f5f7;
+  --bg-2: #e3e9ee;
   --surface: #ffffff;
-  --surface-2: #f3f0e9;
-  --surface-3: #e7e2d7;
-  --line: rgba(17, 32, 24, 0.1);
-  --line-2: rgba(17, 32, 24, 0.2);
-  --text: #112018;
-  --text-2: #4b5b51;
-  --text-3: #87928a;
-  --accent: #f2a541;
-  --accent-text: #9c5a08;
-  --accent-ink: #1a1205;
+  --surface-2: #f2f5f7;
+  --surface-3: #e3e9ee;
+  --line: rgba(14, 28, 42, 0.1);
+  --line-2: rgba(14, 28, 42, 0.2);
+  --text: #0e1c2a;
+  --text-2: #5b6b78;
+  --text-3: #8796a3;
+  --accent: #64bdd9;
+  --accent-text: #005a8c;
+  --accent-ink: #0e1c2a;
   --ok: #2c7d3e;
   --danger: #b8432a;
   --warn: #8c6a0c;
-  --pitch-line: rgba(17, 32, 24, 0.05);
-  --stripe: rgba(17, 32, 24, 0.018);
-  --shadow: 0 1px 2px rgba(17, 32, 24, 0.06);
+  --pitch-line: rgba(14, 28, 42, 0.05);
+  --shadow: 0 1px 2px rgba(14, 28, 42, 0.04), 0 12px 32px -18px rgba(14, 28, 42, 0.18);
   color-scheme: light;
 }
 
@@ -62,12 +66,10 @@ body {
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
-/* Fondo: franjas de césped segado muy sutiles + viñeta */
+/* Fondo liso con un halo azul suave arriba, como el hero de futbollab.com */
 body {
   background-color: var(--bg);
-  background-image:
-    radial-gradient(120% 60% at 50% -10%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 60%),
-    repeating-linear-gradient(180deg, var(--stripe) 0 88px, transparent 88px 176px);
+  background-image: radial-gradient(120% 55% at 50% -12%, color-mix(in srgb, var(--brand) 22%, transparent), transparent 62%);
   background-attachment: fixed;
   min-height: 100dvh;
 }
@@ -79,9 +81,9 @@ h3,
 .hero-dorsal,
 .eval-dorsal,
 .kpi-v,
-.dato-val,
-.logo-txt {
-  font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+.dato-val {
+  font-family: 'Bricolage Grotesque Variable', 'Montserrat', system-ui, sans-serif;
+  letter-spacing: -0.01em;
 }
 .num,
 .media,
@@ -120,14 +122,23 @@ select {
   gap: 8px;
   color: var(--text);
 }
-.logo-txt {
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  line-height: 1;
+.logo img {
+  display: block;
+  height: 100%;
+  width: auto;
 }
-.logo-txt b {
-  color: var(--accent);
-  font-weight: 700;
+/* "Futbol" es blanco en el logo: en modo claro le damos un contorno para que se lea */
+[data-tema='claro'] .logo img {
+  filter: drop-shadow(0 0 0.6px rgba(14, 28, 42, 0.9)) drop-shadow(0 1px 1px rgba(14, 28, 42, 0.35));
+}
+.logo-marca {
+  display: inline-block;
+  overflow: hidden;
+  flex: none;
+}
+.logo-marca img {
+  display: block;
+  max-width: none;
 }
 .logo-app {
   font-family: Inter, sans-serif;
@@ -305,19 +316,19 @@ main {
   justify-self: center;
   width: 52px;
   height: 52px;
-  border-radius: 14px;
+  border-radius: 50%;
   background: var(--accent);
   color: var(--accent-ink);
   display: grid;
   place-items: center;
-  box-shadow: 0 8px 20px -8px rgba(242, 165, 65, 0.6);
+  box-shadow: 0 8px 22px -8px rgba(100, 189, 217, 0.6);
 }
 
 /* ───── Bloques ───── */
 .bloque {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--r-card);
   padding: 14px;
   margin: 12px 0;
   box-shadow: var(--shadow);
@@ -385,13 +396,15 @@ main {
   justify-content: center;
   gap: 8px;
   min-height: 44px;
-  padding: 0 16px;
-  border-radius: 10px;
-  border: 1px solid var(--line-2);
+  padding: 0 20px;
+  border-radius: var(--r-btn);
+  border: 1.5px solid var(--line-2);
   background: transparent;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 0.92rem;
+  letter-spacing: -0.005em;
+  transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
 }
 .btn:hover {
   background: var(--surface-2);
@@ -405,8 +418,9 @@ main {
   border-color: var(--accent);
   color: var(--accent-ink);
 }
-.btn.primario:hover {
-  filter: brightness(1.05);
+.btn.primario:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(100, 189, 217, 0.35);
 }
 .btn.peligro {
   color: var(--danger);
@@ -569,7 +583,7 @@ main {
 }
 .grupo {
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--r-card);
   padding: 14px;
   margin: 0;
   display: grid;
@@ -595,7 +609,7 @@ main {
 .form > label select {
   width: 100%;
   min-height: 46px;
-  border-radius: 8px;
+  border-radius: var(--r-input);
   border: 1px solid var(--line-2);
   background: var(--bg-2);
   padding: 0 12px;
@@ -699,7 +713,7 @@ main {
   display: grid;
   place-items: center;
   background: var(--surface-2);
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Bricolage Grotesque Variable', 'Montserrat', system-ui, sans-serif;
   font-size: 2.2rem;
   font-weight: 700;
 }
@@ -746,12 +760,11 @@ main {
   gap: 14px;
   align-items: center;
   justify-content: space-between;
-  border-radius: 12px;
+  border-radius: var(--r-card);
   padding: 16px 16px 16px 18px;
   margin: 8px 0 12px;
-  background:
-    linear-gradient(100deg, var(--accent) 0%, #e8932a 100%);
-  color: var(--accent-ink);
+  background: linear-gradient(120deg, var(--brand) 0%, var(--brand-2) 100%);
+  color: #fff;
   position: relative;
   overflow: hidden;
 }
@@ -763,25 +776,25 @@ main {
   top: -20px;
   width: 140px;
   height: 120px;
-  border: 2px solid rgba(26, 18, 5, 0.12);
+  border: 2px solid rgba(255, 255, 255, 0.14);
   border-radius: 0 0 0 60px;
 }
 .cta-txt strong {
   display: block;
-  font-family: 'Barlow Condensed', sans-serif;
-  font-size: 1.7rem;
-  line-height: 1.05;
+  font-family: 'Bricolage Grotesque Variable', 'Montserrat', system-ui, sans-serif;
+  font-size: 1.5rem;
+  line-height: 1.1;
   font-weight: 700;
 }
 .cta .sub {
-  color: rgba(26, 18, 5, 0.72);
+  color: rgba(255, 255, 255, 0.78);
 }
 .cta-mas {
   width: 48px;
   height: 48px;
-  border-radius: 12px;
-  background: var(--accent-ink);
-  color: var(--accent);
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
   display: grid;
   place-items: center;
   flex: none;
@@ -793,7 +806,7 @@ main {
   grid-template-columns: repeat(3, 1fr);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--r-card);
   overflow: hidden;
 }
 .kpi {
@@ -844,7 +857,7 @@ main {
   font-weight: 700;
   min-width: 22px;
   text-align: right;
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Bricolage Grotesque Variable', 'Montserrat', system-ui, sans-serif;
   font-size: 1.05rem;
 }
 
@@ -902,8 +915,8 @@ main {
 .filtro {
   flex: none;
   min-height: 34px;
-  padding: 0 12px;
-  border-radius: 8px;
+  padding: 0 14px;
+  border-radius: var(--r-btn);
   border: 1px solid var(--line);
   background: transparent;
   color: var(--text-2);
@@ -933,7 +946,7 @@ main {
   gap: 3px;
   background: linear-gradient(160deg, var(--surface-2), var(--surface) 55%);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--r-card);
   padding: 12px;
   height: 100%;
   overflow: hidden;
@@ -952,9 +965,9 @@ main {
   position: relative;
 }
 .dorsal {
-  font-size: 3.1rem;
+  font-size: 2.6rem;
   font-weight: 700;
-  line-height: 0.8;
+  line-height: 0.85;
   color: transparent;
   -webkit-text-stroke: 1.5px var(--line-2);
   margin-right: -2px;
@@ -1009,7 +1022,7 @@ main {
   font-weight: 700;
   flex: none;
   object-fit: cover;
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Bricolage Grotesque Variable', 'Montserrat', system-ui, sans-serif;
   letter-spacing: 0.02em;
 }
 .avatar.ini {
@@ -1313,8 +1326,8 @@ main {
 }
 .chip-btn {
   min-height: 36px;
-  padding: 0 12px;
-  border-radius: 8px;
+  padding: 0 14px;
+  border-radius: var(--r-btn);
   border: 1px solid var(--line-2);
   background: transparent;
   cursor: pointer;
@@ -1409,9 +1422,9 @@ main {
   border-bottom: 1px solid var(--line);
 }
 .eval-dorsal {
-  font-size: 4rem;
+  font-size: 3.4rem;
   font-weight: 700;
-  line-height: 0.85;
+  line-height: 0.9;
   color: var(--accent-text);
 }
 .eval-nombre {
@@ -1449,7 +1462,7 @@ main {
   background: var(--surface);
   font-size: 1.6rem;
   font-weight: 700;
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Bricolage Grotesque Variable', 'Montserrat', system-ui, sans-serif;
   cursor: pointer;
   transition: transform 0.08s;
 }

@@ -5,9 +5,8 @@ import '@fontsource/inter/latin-400.css'
 import '@fontsource/inter/latin-500.css'
 import '@fontsource/inter/latin-600.css'
 import '@fontsource/inter/latin-700.css'
-import '@fontsource/barlow-condensed/latin-500.css'
-import '@fontsource/barlow-condensed/latin-600.css'
-import '@fontsource/barlow-condensed/latin-700.css'
+// Títulos: Bricolage Grotesque, la misma tipografía de futbollab.com
+import '@fontsource-variable/bricolage-grotesque/wght.css'
 import './index.css'
 import App from './App'
 
