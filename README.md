@@ -23,7 +23,7 @@ npm run build:preview  # un solo HTML autocontenido en dist-preview/
 - **Logo:** `src/ui/Logo.tsx` es el único sitio que hay que cambiar. Ahora mismo lleva uno **provisional** hasta tener el oficial.
 - **Fuentes alojadas con la app** (@fontsource), sin llamadas a Google Fonts. Así no se envía la IP del usuario a Google (sentencia de Múnich de 2022 sobre el RGPD) y la app funciona sin conexión.
 
-> ⚠ En el prototipo, las cuentas se guardan solo en el dispositivo, con la contraseña derivada con PBKDF2-SHA256 (600.000 iteraciones). No es un acceso seguro de verdad: en la fase 2 se sustituye por Supabase Auth, con verificación de email y de teléfono.
+> Las cuentas y los datos están en Supabase (ver «Seguridad, roles y Supabase»). Las cuentas y datos locales del prototipo anterior se borran del navegador al actualizar.
 
 ## Qué incluye
 
@@ -35,6 +35,47 @@ npm run build:preview  # un solo HTML autocontenido en dist-preview/
 | Evaluación rápida (+) | Eliges contexto, de 1 a 4 ítems y jugadores (vienen marcados los disponibles con consentimiento). Pantalla completa, botones 1–5 grandes, guardado en cada toque, paso automático al siguiente jugador y deslizamiento lateral |
 | Evolución | Línea por área y media general, y cambio desde la primera evaluación |
 | Perfil (cuenta) | Modo oscuro o claro, "ver la app como" entrenador principal o ayudante, y restablecer los datos de ejemplo |
+| Admin · Jugadores (escudo arriba) | Tabla de control con contadores (activos, sin consentimiento, no disponibles, sin evaluar 21 días), búsqueda sin tildes, filtros, orden por columna y exportación a CSV para Excel |
+| Admin · Ficha | Alta y edición: datos básicos, contactos de la familia, consentimiento (registrar, editar alcance o retirar), ficha deportiva, disponibilidad, archivar o recuperar, exportar y borrado completo |
+| Admin · Entrenadores | Rol (principal, ayudante, preparador físico, coordinador), permisos (ver ficha, evaluar, notas privadas) y quién es administrador |
+
+## Seguridad, roles y Supabase
+
+Los datos, las cuentas y los permisos viven en **Supabase** (Auth + PostgreSQL). Toda autorización la decide la base de datos con políticas **RLS**; la app solo oculta lo que el servidor ya va a rechazar.
+
+| Rol (`profiles.role`) | Quién | Qué puede hacer |
+|---|---|---|
+| `player` | Usuario normal: el entrenador. Todo registro nuevo, siempre. | Ver los equipos a los que pertenece, evaluar (con permiso), marcar favoritos, registrar un consentimiento pendiente (si es principal) y editar su propio perfil |
+| `admin` | Administrador del club | Todo lo anterior en todos los equipos, más alta, edición y borrado de jugadores, equipos, miembros, permisos y roles, y leer el registro de actividad |
+
+Medidas principales (en `supabase/migrations/20261120120000_roles_y_seguridad.sql`):
+
+- **Rol solo en el servidor:** se lee de `public.profiles`, nunca del token ni de los metadatos editables. El trigger de alta asigna siempre `player`, aunque se mande otro rol.
+- **El rol no se puede cambiar desde el cliente:** sin permiso de escritura en la columna `role`, un trigger lo bloquea igualmente y solo `admin_set_role` (que exige ser admin y no deja el club sin admins) o `promover_admin` (solo SQL Editor o service_role) lo cambian.
+- **Cada operación se comprueba en la base de datos:** RLS en las 14 tablas, privilegios mínimos (sin `TRUNCATE` ni acceso anónimo) y funciones `SECURITY DEFINER` con `search_path` vacío.
+- **Sesión viva:** cada comprobación exige que la sesión siga en `auth.sessions`. Al cerrar sesión, el token deja de valer al instante aunque no haya caducado.
+- **Datos de otros equipos:** los datos de un jugador heredan siempre su equipo (no se puede falsear `equipo_id`). Las notas privadas solo las ve su autor o quien tenga el permiso.
+- **Registro de actividad** (`registro_actividad`): quién creó, cambió o borró jugadores, estados, equipos, miembros y roles. Solo lo leen los admins y nadie lo puede editar.
+
+### Puesta en marcha
+
+1. Crea un proyecto en [supabase.com](https://supabase.com) y aplica la migración: en **SQL Editor** pega `supabase/migrations/20261120120000_roles_y_seguridad.sql` y ejecútalo (o `npx supabase db push`).
+2. Copia `.env.example` como `.env.local` y pon la **Project URL** y la clave pública **anon / publishable**. En Vercel, añade las mismas dos variables en Settings → Environment Variables.
+3. En **Authentication → Providers → Email**, deja activada la confirmación de email y sube la longitud mínima de contraseña a 8.
+4. Regístrate en la app y nombra el **primer administrador** (ver abajo).
+
+### Crear o autorizar administradores
+
+- **El primero** (o para recuperar el acceso): en Supabase → SQL Editor ejecuta
+  `select public.promover_admin('email@del-admin.com');`
+  Solo funciona desde el SQL Editor o un proceso de servidor con la clave `service_role`. Ningún usuario puede ejecutarla desde la app.
+- **Los siguientes:** un admin entra en Admin → Entrenadores y marca «Administrador» en la cuenta. Se puede quitar igual; el servidor no deja quitar al último.
+- Nunca pongas la clave `service_role` en la app ni en Vercel. Solo la usan el SQL Editor y `npm run test:seguridad`.
+
+### Pruebas de seguridad
+
+- `npm test` ejecuta la migración en un PostgreSQL real (PGlite) que imita a Supabase y comprueba los 8 escenarios (usuario normal, `/admin`, API, cambio de rol, datos de otros, admin, sin sesión y cierre de sesión), además de otros ataques.
+- `npm run test:seguridad` repite los escenarios contra el proyecto real (Auth + API). Necesita `SUPABASE_URL`, `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY` en el entorno, crea usuarios de prueba y los borra al terminar.
 
 ## Comprobaciones hechas
 

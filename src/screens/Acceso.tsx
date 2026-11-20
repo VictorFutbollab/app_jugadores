@@ -2,23 +2,14 @@ import { useState, type ReactNode } from 'react'
 import { Logo } from '../ui/Logo'
 import { Icon } from '../ui/Icon'
 import { CATEGORIAS } from '../data/categorias'
-import {
-  comprobarPassword,
-  crearCredencial,
-  normalizarEmail,
-  normalizarTelefono,
-  normalizarUsuario,
-  validarRegistro,
-  type DatosRegistro,
-  type Errores,
-} from '../auth/auth'
-import * as DB from '../db/db'
-import { uid } from '../logic/format'
-import type { Cuenta, Genero } from '../model/types'
+import { normalizarEmail, normalizarTelefono, normalizarUsuario, validarRegistro, type DatosRegistro, type Errores } from '../auth/auth'
+import * as R from '../db/remote'
+import { errorLegible, supabase } from '../db/supabase'
+import type { Genero } from '../model/types'
 
 type Modo = 'entrar' | 'registro'
 
-export function Acceso({ onEntrar }: { onEntrar: (c: Cuenta) => Promise<void> }) {
+export function Acceso({ onEntrar, error }: { onEntrar: () => Promise<void>; error?: string | null }) {
   const [modo, setModo] = useState<Modo>('entrar')
   return (
     <div className="acceso">
@@ -37,9 +28,14 @@ export function Acceso({ onEntrar }: { onEntrar: (c: Cuenta) => Promise<void> })
             Crear cuenta
           </button>
         </div>
+        {error && (
+          <p className="error" role="alert" style={{ marginTop: 12 }}>
+            {error}
+          </p>
+        )}
         {modo === 'entrar' ? <Entrar onEntrar={onEntrar} irRegistro={() => setModo('registro')} /> : <Registro onEntrar={onEntrar} />}
       </div>
-      <p className="acceso-pie">Prototipo · las cuentas se guardan solo en este dispositivo</p>
+      <p className="acceso-pie">Acceso seguro con FutbolLab · tus datos se guardan cifrados en el servidor</p>
     </div>
   )
 }
@@ -62,8 +58,8 @@ export function Campo({ etiqueta, error, children, ayuda }: { etiqueta: string; 
   )
 }
 
-function Entrar({ onEntrar, irRegistro }: { onEntrar: (c: Cuenta) => Promise<void>; irRegistro: () => void }) {
-  const [id, setId] = useState('')
+function Entrar({ onEntrar, irRegistro }: { onEntrar: () => Promise<void>; irRegistro: () => void }) {
+  const [email, setEmail] = useState('')
   const [pw, setPw] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [cargando, setCargando] = useState(false)
@@ -75,17 +71,21 @@ function Entrar({ onEntrar, irRegistro }: { onEntrar: (c: Cuenta) => Promise<voi
         setError(null)
         setCargando(true)
         try {
-          const c = await DB.cuentaPorUsuarioOEmail(id)
-          // mismo mensaje si no existe o si la contraseña no coincide (no revela qué cuentas existen)
-          if (!c || !(await comprobarPassword(c.credencial, pw))) return setError('Usuario o contraseña incorrectos.')
-          await onEntrar(c)
+          const r = await supabase.auth.signInWithPassword({ email: normalizarEmail(email), password: pw })
+          if (r.error) {
+            // mismo mensaje si no existe o si la contraseña no coincide (no revela qué cuentas existen)
+            if (/not confirmed/i.test(r.error.message)) return setError('Confirma tu email: te enviamos un enlace al registrarte.')
+            if (/invalid login|invalid credentials/i.test(r.error.message)) return setError('Email o contraseña incorrectos.')
+            return setError(errorLegible(r.error).message)
+          }
+          await onEntrar()
         } finally {
           setCargando(false)
         }
       }}
     >
-      <Campo etiqueta="Usuario o email">
-        <input autoComplete="username" value={id} onChange={(e) => setId(e.target.value)} required autoCapitalize="none" />
+      <Campo etiqueta="Email">
+        <input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required autoCapitalize="none" />
       </Campo>
       <Campo etiqueta="Contraseña">
         <input type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} required />
@@ -121,14 +121,28 @@ const VACIO: DatosRegistro = {
   aceptaPrivacidad: false,
 }
 
-function Registro({ onEntrar }: { onEntrar: (c: Cuenta) => Promise<void> }) {
+function Registro({ onEntrar }: { onEntrar: () => Promise<void> }) {
   const [d, setD] = useState<DatosRegistro>(VACIO)
   const [err, setErr] = useState<Errores>({})
   const [cargando, setCargando] = useState(false)
   const [verPw, setVerPw] = useState(false)
+  const [general, setGeneral] = useState<string | null>(null)
+  const [revisarEmail, setRevisarEmail] = useState(false)
   const set = <K extends keyof DatosRegistro>(k: K, v: DatosRegistro[K]) => {
     setD((x) => ({ ...x, [k]: v }))
     if (err[k]) setErr((e) => ({ ...e, [k]: undefined }))
+  }
+
+  if (revisarEmail) {
+    return (
+      <div className="bloque" role="status" style={{ marginTop: 16 }}>
+        <h2>Revisa tu email</h2>
+        <p>
+          Te hemos enviado un enlace a <strong>{normalizarEmail(d.email)}</strong> para confirmar la cuenta. Después podrás entrar.
+        </p>
+        <p className="sub">Si ya tenías una cuenta con ese email, entra con ella o recupera la contraseña.</p>
+      </div>
+    )
   }
 
   return (
@@ -137,36 +151,46 @@ function Registro({ onEntrar }: { onEntrar: (c: Cuenta) => Promise<void> }) {
       noValidate
       onSubmit={async (e) => {
         e.preventDefault()
+        setGeneral(null)
         const v = validarRegistro(d)
         const usuario = normalizarUsuario(d.usuario)
         const email = normalizarEmail(d.email)
-        if (!v.usuario && (await DB.existe('usuario', usuario))) v.usuario = 'Ese usuario ya existe.'
-        if (!v.email && (await DB.existe('email', email))) v.email = 'Ya hay una cuenta con ese email.'
-        setErr(v)
-        if (Object.values(v).some(Boolean)) {
-          document.querySelector('.con-error input, .con-error select')?.scrollIntoView({ block: 'center' })
-          return
-        }
         setCargando(true)
-        const ahora = new Date().toISOString()
-        const c: Cuenta = {
-          id: `u-${uid()}`,
-          nombre: d.nombre.trim(),
-          usuario,
-          email,
-          telefono: normalizarTelefono(d.telefono),
-          foto: null,
-          entidad: d.entidad.trim(),
-          categoria: d.categoria,
-          equipo: d.equipo.trim(),
-          genero: d.genero,
-          aceptaPrivacidadEn: ahora,
-          creadoEn: ahora,
-          actualizadoEn: ahora,
-          credencial: await crearCredencial(d.password),
+        try {
+          if (!v.usuario && !(await R.usuarioDisponible(usuario))) v.usuario = 'Ese usuario ya existe.'
+          setErr(v)
+          if (Object.values(v).some(Boolean)) {
+            document.querySelector('.con-error input, .con-error select')?.scrollIntoView({ block: 'center' })
+            return
+          }
+          // El rol NO se envía: el servidor asigna siempre 'player' a las cuentas nuevas.
+          const r = await supabase.auth.signUp({
+            email,
+            password: d.password,
+            options: {
+              emailRedirectTo: location.origin,
+              data: {
+                nombre: d.nombre.trim(),
+                usuario,
+                telefono: normalizarTelefono(d.telefono),
+                entidad: d.entidad.trim(),
+                categoria: d.categoria,
+                equipo: d.equipo.trim(),
+                genero: d.genero,
+                acepta_privacidad: d.aceptaPrivacidad,
+              },
+            },
+          })
+          if (r.error) {
+            if (/already registered|already exists/i.test(r.error.message)) return setErr({ email: 'Ya hay una cuenta con ese email.' })
+            if (/password/i.test(r.error.message)) return setErr({ password: 'La contraseña no cumple los requisitos de seguridad.' })
+            return setGeneral(errorLegible(r.error).message)
+          }
+          if (r.data.session) await onEntrar()
+          else setRevisarEmail(true) // confirmación de email activada en Supabase
+        } finally {
+          setCargando(false)
         }
-        await DB.guardarCuenta(c)
-        await onEntrar(c)
       }}
     >
       <fieldset className="grupo">
@@ -204,6 +228,11 @@ function Registro({ onEntrar }: { onEntrar: (c: Cuenta) => Promise<void> }) {
       {err.aceptaPrivacidad && (
         <p className="error" role="alert">
           {err.aceptaPrivacidad}
+        </p>
+      )}
+      {general && (
+        <p className="error" role="alert">
+          {general}
         </p>
       )}
       <button className="btn primario grande" type="submit" disabled={cargando}>

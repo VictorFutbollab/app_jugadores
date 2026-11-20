@@ -40,6 +40,35 @@ export interface Dataset {
   cargas: CargaSesion[]
 }
 
+/**
+ * Antepone un prefijo a todos los ids (y referencias) del conjunto, para poder
+ * cargar la plantilla de ejemplo varias veces en la nube sin chocar.
+ * Los ítems por defecto no se tocan: son comunes a todos los equipos.
+ */
+export function prefijarIds(ds: Dataset, prefijo: string): Dataset {
+  const CAMPOS = ['id', 'equipoId', 'jugadorId', 'eventoId'] as const
+  const p = <T extends object>(filas: T[]): T[] =>
+    filas.map((f) => {
+      const o = { ...f } as Record<string, unknown>
+      for (const k of CAMPOS) if (typeof o[k] === 'string') o[k] = `${prefijo}${o[k]}`
+      return o as T
+    })
+  return {
+    ...ds,
+    equipos: p(ds.equipos),
+    miembros: ds.miembros.map((m) => ({ ...m, equipoId: `${prefijo}${m.equipoId}` })),
+    jugadores: p(ds.jugadores),
+    estados: p(ds.estados),
+    evaluaciones: p(ds.evaluaciones),
+    pruebas: p(ds.pruebas),
+    notas: p(ds.notas),
+    eventos: p(ds.eventos),
+    asistencias: p(ds.asistencias),
+    participaciones: p(ds.participaciones),
+    cargas: p(ds.cargas),
+  }
+}
+
 function mulberry32(seed: number) {
   return () => {
     seed |= 0

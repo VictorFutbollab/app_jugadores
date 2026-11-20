@@ -1484,3 +1484,333 @@ main {
 .eval-nav .btn {
   min-width: 120px;
 }
+
+/* ───── Administración ───── */
+.app.ancha {
+  max-width: 1080px;
+}
+.appbar-admin {
+  margin-left: auto;
+  color: var(--text-2);
+}
+.appbar-admin.on {
+  color: var(--accent-text);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.admin-secciones {
+  margin: 4px 0 14px;
+  max-width: 420px;
+}
+.admin-intro {
+  margin: 0 0 10px;
+}
+.admin-kpis {
+  grid-template-columns: repeat(4, 1fr);
+  margin-bottom: 12px;
+}
+.admin-kpis .kpi {
+  background: none;
+  border: 0;
+  border-left: 1px solid var(--line);
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  transition: background 0.15s;
+}
+.admin-kpis .kpi:first-child {
+  border-left: 0;
+}
+.admin-kpis .kpi:hover {
+  background: var(--surface-2);
+}
+.admin-kpis .kpi.on {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+.admin-herramientas {
+  align-items: stretch;
+}
+.admin-herramientas .btn {
+  flex: none;
+}
+.buscar {
+  color: var(--text);
+}
+.filtro-n {
+  opacity: 0.6;
+  margin-left: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.tabla-scroll {
+  overflow-x: auto;
+  margin: 8px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.tabla-admin {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  min-width: 760px;
+}
+.tabla-admin th {
+  text-align: left;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-2);
+  white-space: nowrap;
+  background: var(--surface-2);
+}
+.tabla-admin th.num,
+.tabla-admin td.num {
+  text-align: right;
+}
+.th-orden {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.th-orden:hover,
+th[aria-sort] .th-orden {
+  color: var(--text);
+}
+.tabla-admin td {
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  vertical-align: middle;
+}
+.tabla-admin tbody tr {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.tabla-admin tbody tr:hover {
+  background: var(--surface-2);
+}
+.tabla-admin tr.archivado {
+  opacity: 0.55;
+}
+.tabla-admin .tend {
+  font-size: 0.72rem;
+}
+.dorsal-celda {
+  font-family: 'Bricolage Grotesque Variable', 'Montserrat', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--text-2);
+}
+.celda-jugador {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 200px;
+}
+.celda-jugador > span {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.celda-jugador .sub {
+  font-size: 0.76rem;
+  margin: 0;
+}
+.celda-jugador .avatar {
+  border-radius: 50%;
+}
+.tabla-admin td.alerta {
+  color: var(--warn);
+}
+.chip.admin {
+  color: var(--accent-text);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+/* Ficha de edición */
+.contacto {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--line-2);
+}
+.fila-campos.ancha {
+  grid-template-columns: 1fr 150px;
+}
+.fila-campos.mitad {
+  grid-template-columns: 1fr 1fr;
+}
+.checks-fila {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+fieldset:disabled .chips,
+fieldset:disabled .segmentado,
+fieldset:disabled .campo input {
+  opacity: 0.45;
+}
+.estados-sel button {
+  font-size: 0.82rem;
+}
+.barra-accion .ok,
+.barra-accion .error {
+  margin-bottom: 8px;
+  font-size: 0.88rem;
+}
+
+/* Entrenadores */
+.miembros {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+.miembro {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  padding: 14px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 12px;
+}
+.miembro-cab {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.miembro-cab .avatar {
+  border-radius: 50%;
+}
+.miembro-cab .crece {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.miembro-cab .sub {
+  margin: 0;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+.miembro-chips {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+.miembro-controles {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+@media (max-width: 560px) {
+  .admin-kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .admin-kpis .kpi:nth-child(3) {
+    border-left: 0;
+  }
+  .admin-kpis .kpi:nth-child(n + 3) {
+    border-top: 1px solid var(--line);
+  }
+  .ocultar-movil {
+    display: none;
+  }
+  .admin-herramientas .btn {
+    padding: 0 14px;
+  }
+  .fila-campos.ancha,
+  .fila-campos.mitad {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ───── Avisos, actividad y equipos (servidor) ───── */
+.aviso-global {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 16px 0;
+  padding: 8px 8px 8px 14px;
+  border-radius: var(--r-input);
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  color: var(--text);
+  font-size: 0.88rem;
+}
+.aviso-global span {
+  flex: 1;
+}
+.selector-equipo {
+  min-height: 42px;
+  max-width: 260px;
+  border-radius: var(--r-input);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 10px;
+}
+.fila-cuenta {
+  flex-wrap: wrap;
+}
+.fila-cuenta .avatar {
+  border-radius: 50%;
+}
+.fila-cuenta select {
+  min-height: 40px;
+  border-radius: var(--r-input);
+  border: 1px solid var(--line-2);
+  background: var(--bg-2);
+  color: var(--text);
+  padding: 0 8px;
+}
+.actividad {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+.actividad li {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  font-size: 0.88rem;
+}
+.actividad li:first-child {
+  border-top: 0;
+}
+.actividad-fecha {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.actividad code {
+  font-size: 0.78rem;
+  color: var(--text-2);
+}
+@media (max-width: 560px) {
+  .actividad li {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .selector-equipo {
+    max-width: 150px;
+  }
+}

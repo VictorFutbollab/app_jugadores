@@ -12,6 +12,9 @@ export type Ruta =
   | { nombre: 'evaluar' }
   | { nombre: 'evolucion'; id?: string }
   | { nombre: 'perfil' }
+  | { nombre: 'admin'; seccion?: 'jugadores' | 'entrenadores' | 'actividad' }
+  /** Ficha de edición del admin; id "nuevo" para dar de alta. */
+  | { nombre: 'admin-jugador'; id: string }
 
 export function parse(hash: string): Ruta {
   const [a, b, c] = hash.replace(/^#\/?/, '').split(/--|\//)
@@ -26,6 +29,9 @@ export function parse(hash: string): Ruta {
       return { nombre: 'evolucion', id: b }
     case 'perfil':
       return { nombre: 'perfil' }
+    case 'admin':
+      if (b === 'jugador' && c) return { nombre: 'admin-jugador', id: c }
+      return { nombre: 'admin', seccion: b === 'entrenadores' || b === 'actividad' ? b : 'jugadores' }
     default:
       return { nombre: 'inicio' }
   }
@@ -39,6 +45,10 @@ export function href(r: Ruta): string {
       return `#jugador--${r.id}${r.pestana ? `--${r.pestana}` : ''}`
     case 'evolucion':
       return `#evolucion${r.id ? `--${r.id}` : ''}`
+    case 'admin':
+      return r.seccion && r.seccion !== 'jugadores' ? `#admin--${r.seccion}` : '#admin'
+    case 'admin-jugador':
+      return `#admin--jugador--${r.id}`
     default:
       return `#${r.nombre}`
   }

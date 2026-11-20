@@ -16,7 +16,7 @@ const PESTANAS = [
 
 export function Jugador({ id, pestana = 'resumen' }: { id: string; pestana?: string }) {
   const app = useApp()
-  const { ds, resumen, yo, actualizarJugador } = app
+  const { ds, resumen, yo, marcarFavorito } = app
   const j = ds.jugadores.find((x) => x.id === id)
   if (!j) {
     return (
@@ -37,7 +37,7 @@ export function Jugador({ id, pestana = 'resumen' }: { id: string; pestana?: str
   const r = resumen.get(j.id)!
   const ficha = tieneConsentimientoFicha(j)
   const fav = (
-    <button className="icon-btn" aria-pressed={!!j.favorito} aria-label={j.favorito ? 'Quitar de favoritos' : 'Marcar como favorito'} onClick={() => actualizarJugador({ ...j, favorito: !j.favorito })}>
+    <button className="icon-btn" aria-pressed={!!j.favorito} aria-label={j.favorito ? 'Quitar de favoritos' : 'Marcar como favorito'} onClick={() => marcarFavorito(j.id, !j.favorito)}>
       <Icon n="estrella" relleno={!!j.favorito} />
     </button>
   )
@@ -191,9 +191,10 @@ function Notas({ j }: { j: TJugador }) {
 }
 
 function DatosPrivacidad({ j }: { j: TJugador }) {
-  const { yo, exportarJugador, borrarJugador } = useApp()
+  const { yo, exportarJugador, borrarJugador, esAdmin } = useApp()
   const [confirmar, setConfirmar] = useState(false)
   const [borrando, setBorrando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const c = j.consentimiento!
   const principal = yo.rol === 'entrenador_principal'
   const tipo: Record<FirmanteTipo, string> = { madre: 'Madre', padre: 'Padre', tutor_legal: 'Tutor legal', jugador_mayor_14: 'El propio jugador (≥14)' }
@@ -237,21 +238,27 @@ function DatosPrivacidad({ j }: { j: TJugador }) {
       </section>
       <section className="bloque">
         <h2>Derechos de la familia</h2>
-        {!principal ? (
-          <p className="aviso-permiso">Solo el entrenador principal puede exportar o borrar los datos.</p>
+        {!principal && !esAdmin ? (
+          <p className="aviso-permiso">Solo el entrenador principal puede exportar los datos, y solo un administrador puede borrarlos.</p>
         ) : (
           <>
+            {!esAdmin && <p className="aviso-permiso">Si la familia pide borrar sus datos, avisa a un administrador del club: él hace el borrado completo.</p>}
             <div className="botones">
-              <button className="btn" onClick={() => exportarJugador(j.id)}>
+              <button className="btn" onClick={() => exportarJugador(j.id).catch((e) => setError((e as Error).message))}>
                 Exportar todos sus datos
               </button>
-              {!confirmar && (
+              {esAdmin && !confirmar && (
                 <button className="btn peligro" onClick={() => setConfirmar(true)}>
                   Borrar todos sus datos
                 </button>
               )}
             </div>
-            {confirmar && (
+            {error && (
+              <p className="error" role="alert">
+                {error}
+              </p>
+            )}
+            {esAdmin && confirmar && (
               <div className="confirmar" role="alertdialog" aria-label="Confirmar borrado">
                 <p>
                   Se borrarán para siempre la ficha, evaluaciones, pruebas, notas, estados, asistencia, minutos y carga de <strong>{j.nombre}</strong>. No pasa por la papelera y no se puede deshacer.
@@ -265,8 +272,13 @@ function DatosPrivacidad({ j }: { j: TJugador }) {
                     disabled={borrando}
                     onClick={async () => {
                       setBorrando(true)
-                      ir({ nombre: 'plantilla' }, true)
-                      await borrarJugador(j.id)
+                      try {
+                        await borrarJugador(j.id)
+                        ir({ nombre: 'plantilla' }, true)
+                      } catch (e) {
+                        setError((e as Error).message)
+                        setBorrando(false)
+                      }
                     }}
                   >
                     {borrando ? 'Borrando…' : 'Sí, borrar todo'}
@@ -282,7 +294,7 @@ function DatosPrivacidad({ j }: { j: TJugador }) {
 }
 
 function SinConsentimiento({ j }: { j: TJugador }) {
-  const { actualizarJugador, yo } = useApp()
+  const { registrarConsentimiento, yo } = useApp()
   const hoy = new Date().toISOString().slice(0, 10)
   const [f, setF] = useState<Consentimiento>({
     fecha: hoy,
@@ -310,11 +322,15 @@ function SinConsentimiento({ j }: { j: TJugador }) {
       ) : (
         <form
           className="form"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault()
             const v = validarConsentimiento(f, nac || null)
             if (!v.ok) return setError(v.error!)
-            void actualizarJugador({ ...j, consentimiento: f, fechaNacimiento: nac || null })
+            try {
+              await registrarConsentimiento(j.id, f, nac || null) // el servidor vuelve a validar y comprueba el rol
+            } catch (x) {
+              setError((x as Error).message)
+            }
           }}
         >
           <label>
