@@ -28,9 +28,8 @@ create function auth.jwt() returns jsonb language sql stable as $$
 create function auth.uid() returns uuid language sql stable as $$
   select nullif(auth.jwt() ->> 'sub', '')::uuid $$;
 grant execute on function auth.jwt(), auth.uid() to anon, authenticated, service_role;
--- Privilegios por defecto de Supabase: todo para anon y authenticated (la migración los recorta)
-alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
-alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
+-- Proyectos nuevos de Supabase: NO hay privilegios por defecto sobre las tablas nuevas.
+-- Las migraciones tienen que conceder explícitamente todo lo que haga falta.
 `
 
 const U = {
@@ -292,6 +291,32 @@ describe('7 · sin sesión', () => {
   it('solo puede comprobar si un nombre de usuario está libre', async () => {
     expect(await filas(null, `select public.usuario_disponible('admin') libre`)).toEqual([{ libre: false }])
     expect(await filas(null, `select public.usuario_disponible('libre.2026') libre`)).toEqual([{ libre: true }])
+  })
+})
+
+describe('procesos de servidor (service_role)', () => {
+  const comoServidor = async (sql: string, params: unknown[] = []) => {
+    try {
+      return await db.transaction(async (tx) => {
+        await tx.exec(`set local role service_role`)
+        const r = await tx.query(sql, params)
+        return { affected: r.affectedRows ?? 0, rows: r.rows, error: undefined as string | undefined }
+      })
+    } catch (e) {
+      return { affected: 0, rows: [], error: (e as Error).message }
+    }
+  }
+  it('puede preparar datos: equipos, miembros y jugadores (lo usan las pruebas y el mantenimiento)', async () => {
+    expect((await comoServidor(`insert into public.equipos (id, data) values ('eq-srv', '{}')`)).error).toBeUndefined()
+    expect((await comoServidor(`insert into public.jugadores (id, equipo_id, data) values ('j-srv', 'eq-srv', '{}')`)).error).toBeUndefined()
+    expect((await comoServidor(`select public.promover_admin('b@club.test')`)).error).toBeUndefined()
+    expect((await comoServidor(`delete from public.equipos where id = 'eq-srv'`)).affected).toBe(1)
+    await db.exec(`update public.profiles set role = 'player' where email = 'b@club.test'`)
+  })
+  it('tampoco puede alterar el registro de actividad: solo leerlo', async () => {
+    expect((await comoServidor(`select count(*) from public.registro_actividad`)).error).toBeUndefined()
+    expect((await comoServidor(`delete from public.registro_actividad`)).error).toMatch(/permission denied/)
+    expect((await comoServidor(`update public.registro_actividad set accion = 'x'`)).error).toMatch(/permission denied/)
   })
 })
 

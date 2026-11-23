@@ -2,7 +2,8 @@
  * Prueba de seguridad de punta a punta contra el proyecto REAL de Supabase:
  * Auth (inicio y cierre de sesión), PostgREST (API) y RLS, igual que lo usa la app.
  *
- * Uso (PowerShell), con las variables en el entorno y nunca en el código:
+ * Lo más cómodo: powershell -ExecutionPolicy Bypass -File scripts/probar-seguridad.ps1
+ * (pide la clave secreta de forma oculta). O a mano, con las variables en el entorno:
  *   $env:SUPABASE_URL = "https://xxxx.supabase.co"
  *   $env:SUPABASE_ANON_KEY = "<clave pública>"
  *   $env:SUPABASE_SERVICE_ROLE_KEY = "<service_role>"   # solo para crear y borrar los usuarios de prueba
@@ -18,7 +19,7 @@ const URL_SB = process.env.SUPABASE_URL
 const ANON = process.env.SUPABASE_ANON_KEY
 const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY
 if (!URL_SB || !ANON || !SERVICE) {
-  console.error('Faltan SUPABASE_URL, SUPABASE_ANON_KEY o SUPABASE_SERVICE_ROLE_KEY en el entorno.')
+  console.log('Faltan SUPABASE_URL, SUPABASE_ANON_KEY o SUPABASE_SERVICE_ROLE_KEY en el entorno.')
   process.exit(2)
 }
 
@@ -28,7 +29,8 @@ const cliente = () => createClient(URL_SB, ANON, opciones) // lo mismo que tiene
 
 const sufijo = randomUUID().slice(0, 8)
 const PW = `Prueba-${randomUUID()}`
-const correo = (q) => `seguridad.${q}.${sufijo}@futbollab-pruebas.invalid`
+// Dominio real (con MX) para que Supabase acepte el formato; con email_confirm no se envía ningún correo.
+const correo = (q) => `prueba.seguridad+${q}-${sufijo}@futbollab.com`
 const EQ_A = `test-${sufijo}-a`
 const EQ_B = `test-${sufijo}-b`
 
@@ -57,8 +59,27 @@ async function entrar(q) {
   return c
 }
 
+/** Borra restos de ejecuciones anteriores interrumpidas (solo datos de prueba). */
+async function limpiarRestos() {
+  const eq = await servidor.from('equipos').delete().like('id', 'test-%').select('id')
+  let usuarios = 0
+  for (let pagina = 1; ; pagina++) {
+    const { data, error } = await servidor.auth.admin.listUsers({ page: pagina, perPage: 200 })
+    if (error) throw error
+    for (const u of data.users) {
+      if (u.email?.startsWith('prueba.seguridad+') && u.email.endsWith('@futbollab.com')) {
+        await servidor.auth.admin.deleteUser(u.id)
+        usuarios++
+      }
+    }
+    if (data.users.length < 200) break
+  }
+  if (eq.data?.length || usuarios) console.log(`Restos de pruebas anteriores borrados: ${eq.data?.length ?? 0} equipos y ${usuarios} usuarios.`)
+}
+
 const ids = {}
 try {
+  await limpiarRestos()
   console.log('Preparando usuarios y equipos de prueba…')
   ids.admin = await crearUsuario('admin')
   ids.a = await crearUsuario('a', { role: 'admin' })
@@ -137,7 +158,7 @@ try {
   ok(rechazado(await robado.rpc('admin_set_role', { objetivo: ids.a, nuevo: 'admin' })), 'ni cambiar roles')
 } catch (e) {
   fallos++
-  console.error('\nError preparando o ejecutando las pruebas:', e.message ?? e)
+  console.log('\nError preparando o ejecutando las pruebas:', JSON.stringify({ mensaje: e?.message ?? String(e), codigo: e?.code, estado: e?.status, detalles: e?.details, pista: e?.hint }))
 } finally {
   console.log('\nLimpiando datos de prueba…')
   await servidor.from('equipos').delete().in('id', [EQ_A, EQ_B])

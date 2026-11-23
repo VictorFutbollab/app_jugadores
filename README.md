@@ -59,7 +59,7 @@ Medidas principales (en `supabase/migrations/20261120120000_roles_y_seguridad.sq
 
 ### Puesta en marcha
 
-1. Crea un proyecto en [supabase.com](https://supabase.com) y aplica la migración: en **SQL Editor** pega `supabase/migrations/20261120120000_roles_y_seguridad.sql` y ejecútalo (o `npx supabase db push`).
+1. Crea un proyecto en [supabase.com](https://supabase.com) y aplica las migraciones **en orden**: en **SQL Editor** pega y ejecuta cada archivo de `supabase/migrations/` (`20261120120000_roles_y_seguridad.sql` y después `20261123120000_privilegios_service_role.sql`), o usa `npx supabase db push`.
 2. Copia `.env.example` como `.env.local` y pon la **Project URL** y la clave pública **anon / publishable**. En Vercel, añade las mismas dos variables en Settings → Environment Variables.
 3. En **Authentication → Providers → Email**, deja activada la confirmación de email y sube la longitud mínima de contraseña a 8.
 4. Regístrate en la app y nombra el **primer administrador** (ver abajo).
