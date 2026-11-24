@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { Icon } from './Icon'
-import { PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ResponsiveContainer, Legend } from 'recharts'
 import type { Estado, Jugador } from '../model/types'
 import { AREAS, AREA_COLOR, AREA_CORTO, ESTADO_INFO, iniciales, num1 } from '../logic/format'
 import { puedeMostrarFoto } from '../logic/privacy'
@@ -67,26 +66,6 @@ export function Enlace({ to, children, className }: { to: Ruta; children: ReactN
   )
 }
 
-export function RadarAreas({ areas, comparar, alto = 260, etiquetaComparar = 'Media del equipo' }: { areas: AreaScores; comparar?: AreaScores; alto?: number; etiquetaComparar?: string }) {
-  const data = AREAS.map((a) => ({ area: AREA_CORTO[a], jugador: areas[a] ?? 0, equipo: comparar?.[a] ?? 0 }))
-  return (
-    <div style={{ width: '100%', height: alto }} role="img" aria-label={`Radar: ${AREAS.map((a) => `${AREA_CORTO[a]} ${num1(areas[a])}`).join(', ')}`}>
-      <ResponsiveContainer>
-        <RadarChart data={data} outerRadius="72%">
-          <PolarGrid stroke="var(--line)" />
-          <PolarAngleAxis dataKey="area" tick={{ fill: 'var(--text-2)', fontSize: 12, fontFamily: 'Inter' }} />
-          <PolarRadiusAxis domain={[0, 5]} tickCount={6} tick={false} axisLine={false} />
-          {comparar && (
-            <Radar name={etiquetaComparar} dataKey="equipo" stroke="var(--text-3)" strokeDasharray="4 3" fill="transparent" isAnimationActive={false} />
-          )}
-          <Radar name="Jugador" dataKey="jugador" stroke="var(--accent)" strokeWidth={2} fill="var(--accent)" fillOpacity={0.28} isAnimationActive={false} />
-          {comparar && <Legend wrapperStyle={{ fontSize: 12 }} itemSorter={null} />}
-        </RadarChart>
-      </ResponsiveContainer>
-    </div>
-  )
-}
-
 export function BarrasArea({ areas, comparar }: { areas: AreaScores; comparar?: AreaScores }) {
   return (
     <ul className="barras">
@@ -98,7 +77,7 @@ export function BarrasArea({ areas, comparar }: { areas: AreaScores; comparar?: 
           </span>
           <span className="barras-pista">
             <span className="barras-valor" style={{ width: `${((areas[a] ?? 0) / 5) * 100}%`, background: AREA_COLOR[a] }} />
-            {comparar?.[a] != null && <span className="barras-ref" style={{ left: `${(comparar[a]! / 5) * 100}%` }} title="Media del equipo" />}
+            {comparar?.[a] != null && <span className="barras-ref" style={{ left: `${(comparar[a]! / 5) * 100}%` }} title="Hace 30 días" />}
           </span>
           <span className="num">{num1(areas[a])}</span>
         </li>

@@ -28,6 +28,8 @@ try {
   $env:SUPABASE_URL = $url
   $env:SUPABASE_ANON_KEY = $publica
   $env:SUPABASE_SERVICE_ROLE_KEY = $secreta
+  $pinSeguro = Read-Host 'PIN de administración' -AsSecureString
+  $env:ADMIN_PIN = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($pinSeguro)).Trim()
   # En PowerShell 5 un mensaje por stderr cortaría la ejecución: aquí no debe parar nada.
   $ErrorActionPreference = 'Continue'
   node scripts/probar-seguridad.mjs | Tee-Object -FilePath seguridad.log
@@ -35,6 +37,7 @@ try {
 } finally {
   [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
   Remove-Item Env:SUPABASE_SERVICE_ROLE_KEY -ErrorAction SilentlyContinue
+  Remove-Item Env:ADMIN_PIN -ErrorAction SilentlyContinue
   $secreta = $null
 }
 Write-Host ''

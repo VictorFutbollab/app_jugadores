@@ -2,12 +2,15 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { viteSingleFile } from 'vite-plugin-singlefile'
+import { registroLocal } from './dev/registro-local.ts'
 
 // `npm run build`         → PWA instalable (dist/)
 // `npm run build:preview` → un solo HTML autocontenido para la vista previa (dist-preview/)
 export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
+    registroLocal(), // solo en `npm run dev`: cuentas sin confirmar el email en localhost
+
     mode === 'preview'
       ? viteSingleFile()
       : VitePWA({
@@ -34,6 +37,10 @@ export default defineConfig(({ mode }) => ({
           },
         }),
   ],
+  // 127.0.0.1 en vez de "localhost": en Windows Node escucha solo en IPv6 (::1) y
+  // algunos navegadores entran por IPv4 y reciben "conexión rechazada".
+  server: { host: '127.0.0.1', port: 5173 },
+  preview: { host: '127.0.0.1' },
   build: mode === 'preview' ? { outDir: 'dist-preview', chunkSizeWarningLimit: 2000 } : undefined,
   test: { environment: 'node' },
 }))

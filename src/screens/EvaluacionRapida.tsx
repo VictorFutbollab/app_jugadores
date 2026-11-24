@@ -11,6 +11,15 @@ import type { ContextoEvaluacion, Evaluacion, ItemEvaluacion, Jugador, Puntuacio
 const MAX_ITEMS = 4
 const SUGERIDOS = ['tac-presion', 'tec-pase-corto', 'men-concentracion']
 
+/** Plantillas de un toque (como en SkillShark o TeamGenius): sin elegir ítem a ítem cada vez. */
+const PLANTILLAS: { id: string; nombre: string; items: string[] }[] = [
+  { id: 'partido', nombre: 'Partido', items: SUGERIDOS },
+  { id: 'tecnica', nombre: 'Técnica', items: ['tec-control', 'tec-pase-corto', 'tec-conduccion'] },
+  { id: 'tactica', nombre: 'Táctica', items: ['tac-posicionamiento', 'tac-lectura', 'tac-presion'] },
+  { id: 'fisica', nombre: 'Física', items: ['fis-velocidad', 'fis-resistencia', 'fis-coordinacion'] },
+  { id: 'actitud', nombre: 'Actitud', items: ['men-concentracion', 'men-compromiso', 'men-companerismo'] },
+]
+
 type Fase = 'preparar' | 'evaluar' | 'fin'
 
 export function EvaluacionRapida() {
@@ -86,9 +95,20 @@ export function EvaluacionRapida() {
       </section>
 
       <section className="bloque">
-        <h2>
-          Qué vas a observar <span className="sub num">{itemIds.length}/{MAX_ITEMS}</span>
-        </h2>
+        <h2>Qué vas a observar</h2>
+        <div className="plantillas" role="radiogroup" aria-label="Plantilla de evaluación">
+          {PLANTILLAS.map((p) => {
+            const on = p.items.length === itemIds.length && p.items.every((i) => itemIds.includes(i))
+            return (
+              <button key={p.id} role="radio" aria-checked={on} className={`plantilla ${on ? 'on' : ''}`} onClick={() => setItemIds(p.items.filter((i) => ds.items.some((x) => x.id === i)))}>
+                <strong>{p.nombre}</strong>
+                <span>{p.items.map((i) => ds.items.find((x) => x.id === i)?.nombre).filter(Boolean).join(' · ')}</span>
+              </button>
+            )
+          })}
+        </div>
+        <details className="mas-opciones">
+          <summary>Elegir los ítems a mano ({itemIds.length}/{MAX_ITEMS})</summary>
         {AREAS.map((a) => (
           <div key={a} className="grupo-items">
             <h3 style={{ color: AREA_COLOR[a] }}>{AREA_CORTO[a]}</h3>
@@ -111,12 +131,16 @@ export function EvaluacionRapida() {
           </div>
         ))}
         <p className="nota-pie">A los porteros se les cambian los ítems de campo por ítems de portero.</p>
+        </details>
       </section>
 
       <section className="bloque">
-        <h2>
-          Jugadores <span className="sub num">{sel.size} seleccionados</span>
-        </h2>
+        <h2>Jugadores</h2>
+        <p className="sub">
+          {sel.size === candidatos.length ? `Todos (${sel.size})` : `${sel.size} de ${candidatos.length} seleccionados`}. Los lesionados, enfermos y sancionados vienen desmarcados.
+        </p>
+        <details className="mas-opciones">
+          <summary>Cambiar jugadores</summary>
         <ul className="lista-sel">
           {candidatos.map((j) => {
             const est = estadoDe(j.id)?.tipo ?? 'disponible'
@@ -132,6 +156,7 @@ export function EvaluacionRapida() {
             )
           })}
         </ul>
+        </details>
         {sinConsent > 0 && <p className="nota-pie con-icono"><Icon n="aviso" size={14} /> {sinConsent === 1 ? '1 jugador sin consentimiento no aparece.' : `${sinConsent} jugadores sin consentimiento no aparecen.`}</p>}
       </section>
 
@@ -167,6 +192,24 @@ function itemsPara(j: Jugador, items: ItemEvaluacion[], todos: ItemEvaluacion[])
   return out
 }
 
+/** Qué significa cada nota, en el lenguaje del entrenador (nunca en negativo absoluto). */
+export const ETIQUETA_NOTA: Record<Puntuacion['valor'], string> = { 1: 'Le cuesta', 2: 'En proceso', 3: 'Cumple', 4: 'Bien', 5: 'Destaca' }
+const SEGUNDOS_DESHACER = 5
+
+/** Vibración corta al puntuar (si el móvil la permite y el usuario no ha pedido menos movimiento). */
+const vibrar = () => {
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) navigator.vibrate(12)
+}
+
+interface UltimaNota {
+  jid: string
+  itemId: string
+  antes: Puntuacion['valor'] | undefined
+  ahora: Puntuacion['valor'] | undefined
+  nombre: string
+  clave: number
+}
+
 function Deslizador({ jugadores, items, contexto, sesionId, inicio, onFin }: { jugadores: Jugador[]; items: ItemEvaluacion[]; contexto: ContextoEvaluacion; sesionId: string; inicio: number; onFin: () => void }) {
   const { ds, guardarEvaluacion, usuarioId } = useApp()
   const [i, setI] = useState(0)
@@ -174,6 +217,7 @@ function Deslizador({ jugadores, items, contexto, sesionId, inicio, onFin }: { j
   const [dx, setDx] = useState(0)
   const start = useRef<{ x: number; y: number } | null>(null)
   const avance = useRef<number | null>(null)
+  const [ultima, setUltima] = useState<UltimaNota | null>(null)
   const [, tick] = useState(0)
 
   useEffect(() => {
@@ -181,13 +225,24 @@ function Deslizador({ jugadores, items, contexto, sesionId, inicio, onFin }: { j
     return () => clearInterval(t)
   }, [])
 
+  // "Deshacer" visible durante unos segundos tras cada nota.
+  useEffect(() => {
+    if (!ultima) return
+    const t = setTimeout(() => setUltima((u) => (u?.clave === ultima.clave ? null : u)), SEGUNDOS_DESHACER * 1000)
+    return () => clearTimeout(t)
+  }, [ultima])
+
   const j = jugadores[i]
   const its = itemsPara(j, items, ds.items)
   const mias = punt[j.id] ?? {}
 
+  const guardadas = useRef(new Set<string>())
   const guardar = (jid: string, p: Record<string, Puntuacion['valor']>) => {
     const puntuaciones = Object.entries(p).map(([itemId, valor]) => ({ itemId, valor }))
-    if (!puntuaciones.length) return
+    // Sin notas: solo se guarda (vacía) si ya se había guardado algo, para que quitar la
+    // única nota o deshacerla se refleje también en el servidor. Las vacías no cuentan.
+    if (!puntuaciones.length && !guardadas.current.has(jid)) return
+    guardadas.current.add(jid)
     const ahora = new Date().toISOString()
     const ev: Evaluacion = {
       id: `evl-${sesionId}-${jid}`,
@@ -211,14 +266,31 @@ function Deslizador({ jugadores, items, contexto, sesionId, inicio, onFin }: { j
 
   const puntuar = (itemId: string, v: Puntuacion['valor']) => {
     const nuevo = { ...mias }
+    const antes = nuevo[itemId]
     if (nuevo[itemId] === v) delete nuevo[itemId]
     else nuevo[itemId] = v
     setPunt((p) => ({ ...p, [j.id]: nuevo }))
     guardar(j.id, nuevo) // guardado automático en cada toque
+    vibrar()
+    setUltima({ jid: j.id, itemId, antes, ahora: nuevo[itemId], nombre: j.nombre, clave: Date.now() })
     if (its.every((it) => nuevo[it.id])) {
       if (avance.current) clearTimeout(avance.current)
       avance.current = window.setTimeout(() => irA(i + 1), 280)
     }
+  }
+
+  /** Vuelve la última nota a como estaba (y al jugador, si ya se había pasado al siguiente). */
+  const deshacer = () => {
+    if (!ultima) return
+    if (avance.current) clearTimeout(avance.current)
+    const previas = { ...(punt[ultima.jid] ?? {}) }
+    if (ultima.antes) previas[ultima.itemId] = ultima.antes
+    else delete previas[ultima.itemId]
+    setPunt((p) => ({ ...p, [ultima.jid]: previas }))
+    guardar(ultima.jid, previas)
+    const k = jugadores.findIndex((x) => x.id === ultima.jid)
+    if (k >= 0 && k !== i) setI(k)
+    setUltima(null)
   }
 
   const seg = Math.floor((Date.now() - inicio) / 1000)
@@ -230,10 +302,15 @@ function Deslizador({ jugadores, items, contexto, sesionId, inicio, onFin }: { j
         <button className="icon-btn" aria-label="Terminar" onClick={onFin}>
           <Icon n="cerrar" />
         </button>
-        <div className="progreso" aria-label={`Jugador ${i + 1} de ${jugadores.length}`}>
-          {jugadores.map((x, k) => (
-            <span key={x.id} className={k < i ? 'hecho' : k === i ? 'actual' : ''} />
-          ))}
+        <div className="progreso-caja">
+          <span className="eval-contador num" aria-live="polite">
+            <strong>{i + 1}</strong> de {jugadores.length}
+          </span>
+          <div className="progreso" aria-hidden>
+            {jugadores.map((x, k) => (
+              <span key={x.id} className={k < i ? 'hecho' : k === i ? 'actual' : ''} />
+            ))}
+          </div>
         </div>
         <span className="num reloj" aria-label="Tiempo">
           <Icon n="reloj" size={15} /> {reloj}
@@ -283,8 +360,9 @@ function Deslizador({ jugadores, items, contexto, sesionId, inicio, onFin }: { j
               </div>
               <div className="escala" role="radiogroup" aria-label={it.nombre}>
                 {([1, 2, 3, 4, 5] as const).map((v) => (
-                  <button key={v} role="radio" aria-checked={mias[it.id] === v} className={`nota n${v} ${mias[it.id] === v ? 'on' : ''}`} onClick={() => puntuar(it.id, v)}>
-                    {v}
+                  <button key={v} role="radio" aria-checked={mias[it.id] === v} aria-label={`${v}: ${ETIQUETA_NOTA[v]}`} className={`nota n${v} ${mias[it.id] === v ? 'on' : ''}`} onClick={() => puntuar(it.id, v)}>
+                    <span className="nota-v">{v}</span>
+                    <span className="nota-e">{ETIQUETA_NOTA[v]}</span>
                   </button>
                 ))}
               </div>
@@ -294,12 +372,24 @@ function Deslizador({ jugadores, items, contexto, sesionId, inicio, onFin }: { j
         <p className="nota-pie centrado">Desliza para cambiar de jugador · toca otra vez para quitar la nota</p>
       </div>
 
+      {ultima && (
+        <div className="deshacer" role="status" key={ultima.clave}>
+          <span>
+            {ultima.nombre}: {ultima.ahora ? `${ultima.ahora} · ${ETIQUETA_NOTA[ultima.ahora]}` : 'nota quitada'}
+          </span>
+          <button className="btn" onClick={deshacer}>
+            Deshacer
+          </button>
+          <span className="deshacer-barra" style={{ animationDuration: `${SEGUNDOS_DESHACER}s` }} aria-hidden />
+        </div>
+      )}
+
       <div className="eval-nav">
         <button className="btn" disabled={i === 0} onClick={() => irA(i - 1)}>
           Anterior
         </button>
         <span className="num sub">
-          {i + 1} / {jugadores.length}
+          {i + 1} de {jugadores.length}
         </span>
         <button className="btn primario" onClick={() => irA(i + 1)}>
           {i === jugadores.length - 1 ? 'Terminar' : Object.keys(mias).length ? 'Siguiente' : 'Saltar'}
@@ -311,7 +401,7 @@ function Deslizador({ jugadores, items, contexto, sesionId, inicio, onFin }: { j
 
 function Fin({ jugadores, sesionId, ms, antes }: { jugadores: Jugador[]; sesionId: string; ms: number; antes: Map<string, number | null> }) {
   const { ds } = useApp()
-  const evs = ds.evaluaciones.filter((e) => e.id.startsWith(`evl-${sesionId}-`))
+  const evs = ds.evaluaciones.filter((e) => e.id.startsWith(`evl-${sesionId}-`) && e.puntuaciones.length > 0)
   const notas = evs.reduce((s, e) => s + e.puntuaciones.length, 0)
   const seg = Math.round(ms / 1000)
   return (

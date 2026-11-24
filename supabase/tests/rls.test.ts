@@ -39,7 +39,8 @@ const U = {
   entrenadorB: '00000000-0000-4000-8000-0000000000b1', // principal del equipo B
   sinEquipo: '00000000-0000-4000-8000-0000000000c1', // recién registrado
 }
-const SESION: Record<string, string> = Object.fromEntries(Object.values(U).map((id) => [id, id.replace(/^0000/, '5e55')]))
+const PIN = '482915'
+const SESION: Record<string, string> =Object.fromEntries(Object.values(U).map((id) => [id, id.replace(/^0000/, '5e55')]))
 
 let db: PGlite
 
@@ -88,6 +89,8 @@ beforeAll(async () => {
 
   // Primer admin: proceso de servidor (como el SQL Editor).
   await db.query(`select public.promover_admin('admin@club.test')`)
+  // PIN de administración: lo fija el servidor (SQL Editor), nunca la app.
+  await db.query(`select public.admin_fijar_pin($1)`, [PIN])
 
   // Datos (los crea el servidor, como haría la carga inicial).
   await db.exec(`
@@ -233,6 +236,65 @@ describe('5 · un usuario normal intenta ver datos privados de otros', () => {
   })
 })
 
+describe('PIN de administración', () => {
+  const verificar = async (uid: string, pin: string) => (await filas(uid, `select public.admin_verificar_pin($1) ok`, [pin]))[0].ok
+  const esAdmin = async (uid: string) => (await filas(uid, `select public.is_admin() a`))[0].a
+
+  it('una cuenta admin que entra sin PIN no tiene poderes de admin en el servidor', async () => {
+    expect(await esAdmin(U.admin)).toBe(false)
+    expect(await filas(U.admin, `select id from public.equipos`)).toEqual([])
+    expect((await como(U.admin, `insert into public.jugadores (id, equipo_id, data) values ('j-x','eq-a','{}')`)).error).toMatch(/row-level security/)
+    expect((await como(U.admin, `select public.admin_set_role($1, 'admin')`, [U.entrenadorA])).error).toMatch(/Solo un administrador/)
+    expect(await filas(U.admin, `select * from public.registro_actividad`)).toEqual([])
+  })
+  it('con un PIN incorrecto sigue sin serlo', async () => {
+    expect(await verificar(U.admin, '000000')).toBe(false)
+    expect(await esAdmin(U.admin)).toBe(false)
+  })
+  it('un usuario normal no se hace admin aunque sepa el PIN', async () => {
+    expect(await verificar(U.entrenadorA, PIN)).toBe(false)
+    expect(await esAdmin(U.entrenadorA)).toBe(false)
+    expect((await filas(U.entrenadorA, `select id from public.equipos`)).map((r) => r.id)).toEqual(['eq-a'])
+  })
+  it('nadie puede leer la huella del PIN ni las sesiones de admin', async () => {
+    for (const t of ['pin_admin', 'sesiones_admin', 'intentos_pin']) {
+      expect((await como(U.entrenadorA, `select * from privado.${t}`)).error).toMatch(/permission denied/)
+      expect((await como(U.admin, `select * from privado.${t}`)).error).toMatch(/permission denied/)
+    }
+    expect((await como(U.entrenadorA, `insert into privado.sesiones_admin values ($1, $2)`, [SESION[U.entrenadorA], U.entrenadorA])).error).toMatch(/permission denied/)
+  })
+  it('ni un usuario normal ni un admin sin PIN pueden cambiar el PIN', async () => {
+    expect((await como(U.entrenadorA, `select public.admin_fijar_pin('1111')`)).error).toMatch(/Solo un administrador/)
+    expect((await como(U.admin, `select public.admin_fijar_pin('1111')`)).error).toMatch(/Solo un administrador/)
+  })
+  it('sin sesión no se puede ni intentar', async () => {
+    expect((await como(null, `select public.admin_verificar_pin($1)`, [PIN])).error).toMatch(/permission denied/)
+    expect((await como(null, `select public.admin_fijar_pin('1111')`)).error).toMatch(/permission denied/)
+  })
+  it('5 fallos seguidos bloquean al usuario: ni con el PIN bueno entra', async () => {
+    for (let i = 0; i < 5; i++) expect(await verificar(U.ayudanteA, '9999')).toBe(false)
+    expect((await como(U.ayudanteA, `select public.admin_verificar_pin($1)`, [PIN])).error).toMatch(/Demasiados intentos/)
+  })
+  it('con el PIN correcto es admin, pero solo en esa sesión', async () => {
+    expect(await verificar(U.admin, PIN)).toBe(true)
+    expect(await esAdmin(U.admin)).toBe(true)
+    // Misma cuenta en otra sesión (otro móvil, o entrando por el acceso normal): no es admin.
+    const otra = '5e550000-0000-4000-8000-0000000000ff'
+    await db.query(`insert into auth.sessions (id, user_id) values ($1, $2)`, [otra, U.admin])
+    const original = SESION[U.admin]
+    SESION[U.admin] = otra
+    try {
+      expect(await esAdmin(U.admin)).toBe(false)
+    } finally {
+      SESION[U.admin] = original
+    }
+  })
+  it('un admin con PIN puede cambiarlo; el valor tiene que ser de 4 a 8 cifras', async () => {
+    expect((await como(U.admin, `select public.admin_fijar_pin('12ab')`)).error).toMatch(/de 4 a 8 cifras/)
+    expect((await como(U.admin, `select public.admin_fijar_pin($1)`, [PIN])).error).toBeUndefined()
+  })
+})
+
 describe('6 · el admin entra y gestiona', () => {
   it('ve todos los equipos y jugadores', async () => {
     expect((await filas(U.admin, `select id from public.equipos order by id`)).map((r) => r.id)).toEqual(['eq-a', 'eq-b'])
@@ -332,5 +394,18 @@ describe('8 · el admin cierra sesión', () => {
   it('lo mismo para un entrenador: sin sesión viva no ve su equipo', async () => {
     await db.query(`delete from auth.sessions where id = $1`, [SESION[U.entrenadorB]])
     expect(await filas(U.entrenadorB, `select * from public.jugadores`)).toEqual([])
+  })
+})
+
+describe('las migraciones se pueden deshacer', () => {
+  it('el rollback del PIN vuelve al comportamiento anterior sin errores', async () => {
+    const otra = new PGlite()
+    await otra.exec(ENTORNO_SUPABASE)
+    const dir = fileURLToPath(new URL('../migrations', import.meta.url))
+    for (const f of readdirSync(dir).filter((x) => x.endsWith('.sql')).sort()) await otra.exec(readFileSync(join(dir, f), 'utf8'))
+    await otra.exec(readFileSync(fileURLToPath(new URL('../rollback/20261124120000_pin_admin.down.sql', import.meta.url)), 'utf8'))
+    const r = await otra.query(`select count(*)::int n from information_schema.schemata where schema_name = 'privado'`)
+    expect(r.rows[0]).toEqual({ n: 0 })
+    await otra.close()
   })
 })

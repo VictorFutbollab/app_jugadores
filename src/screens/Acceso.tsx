@@ -4,13 +4,49 @@ import { Icon } from '../ui/Icon'
 import { CATEGORIAS } from '../data/categorias'
 import { normalizarEmail, normalizarTelefono, normalizarUsuario, validarRegistro, type DatosRegistro, type Errores } from '../auth/auth'
 import * as R from '../db/remote'
-import { errorLegible, supabase } from '../db/supabase'
+import { errorLegible, MODO_LOCAL, supabase } from '../db/supabase'
 import type { Genero } from '../model/types'
+import { apuntarFallo, borrarFallos, minutosBloqueo } from '../auth/pinAdmin'
 
-type Modo = 'entrar' | 'registro'
+type Modo = 'entrar' | 'registro' | 'admin'
 
-export function Acceso({ onEntrar, error }: { onEntrar: () => Promise<void>; error?: string | null }) {
+/**
+ * Solo en localhost (npm run dev): el servidor de desarrollo crea o confirma la cuenta
+ * sin correo (ver dev/registro-local.ts). En la web publicada esto no existe y se
+ * sigue exigiendo confirmar el email. Devuelve null si no está disponible.
+ */
+async function sinCorreoEnLocal(ruta: 'registro' | 'confirmar', cuerpo: object): Promise<{ ok: boolean; error?: string } | null> {
+  if (!import.meta.env.DEV || MODO_LOCAL) return null // en modo local ya no hay correo que confirmar
+  try {
+    const r = await fetch(`/__local/${ruta}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(cuerpo) })
+    const j = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string }
+    if (r.status === 501) return null // falta la clave en .env.local: se usa el registro normal
+    return { ok: r.ok && !!j.ok, error: j.error }
+  } catch {
+    return null
+  }
+}
+
+/** Panel al que se entra: el de entrenador (normal) o el de administración (con PIN). */
+export type Panel = 'usuario' | 'admin'
+
+export function Acceso({ onEntrar, error }: { onEntrar: (panel: Panel) => Promise<void>; error?: string | null }) {
   const [modo, setModo] = useState<Modo>('entrar')
+  if (modo === 'admin') {
+    return (
+      <div className="acceso">
+        <div className="acceso-campo" aria-hidden />
+        <div className="acceso-caja">
+          <div className="acceso-marca">
+            <Logo alto={34} />
+            <p className="acceso-app">Administración</p>
+            <p className="acceso-lema">Acceso solo para administradores del club.</p>
+          </div>
+          <EntrarAdmin onEntrar={() => onEntrar('admin')} volver={() => setModo('entrar')} />
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="acceso">
       <div className="acceso-campo" aria-hidden />
@@ -33,9 +69,17 @@ export function Acceso({ onEntrar, error }: { onEntrar: () => Promise<void>; err
             {error}
           </p>
         )}
-        {modo === 'entrar' ? <Entrar onEntrar={onEntrar} irRegistro={() => setModo('registro')} /> : <Registro onEntrar={onEntrar} />}
+        {modo === 'entrar' ? (
+          <Entrar onEntrar={() => onEntrar('usuario')} irRegistro={() => setModo('registro')} irAdmin={() => setModo('admin')} />
+        ) : (
+          <Registro onEntrar={() => onEntrar('usuario')} />
+        )}
       </div>
-      <p className="acceso-pie">Acceso seguro con FutbolLab · tus datos se guardan cifrados en el servidor</p>
+      <p className="acceso-pie">
+        {MODO_LOCAL
+          ? 'Modo local (solo en este ordenador): las cuentas y los datos se guardan en este navegador y no hace falta confirmar el email.'
+          : 'Acceso seguro con FutbolLab · tus datos se guardan cifrados en el servidor'}
+      </p>
     </div>
   )
 }
@@ -58,7 +102,87 @@ export function Campo({ etiqueta, error, children, ayuda }: { etiqueta: string; 
   )
 }
 
-function Entrar({ onEntrar, irRegistro }: { onEntrar: () => Promise<void>; irRegistro: () => void }) {
+/**
+ * Acceso al panel de administración: email, contraseña y PIN.
+ * Los tres tienen que ser correctos y la cuenta tiene que ser admin según el servidor.
+ * Ante cualquier fallo el mensaje es el mismo (no revela qué dato falló) y, tras
+ * 5 fallos seguidos, se bloquea 5 minutos.
+ */
+function EntrarAdmin({ onEntrar, volver }: { onEntrar: () => Promise<void>; volver: () => void }) {
+  const [email, setEmail] = useState('')
+  const [pw, setPw] = useState('')
+  const [pin, setPin] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [cargando, setCargando] = useState(false)
+  const fallo = async (msg = 'Email, contraseña o PIN incorrectos, o la cuenta no es de administrador.') => {
+    apuntarFallo()
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+    const min = minutosBloqueo()
+    setError(min ? `Demasiados intentos. Espera ${min} min y vuelve a probar.` : msg)
+  }
+  return (
+    <form
+      className="form"
+      onSubmit={async (e) => {
+        e.preventDefault()
+        setError(null)
+        const min = minutosBloqueo()
+        if (min) return setError(`Demasiados intentos. Espera ${min} min y vuelve a probar.`)
+        setCargando(true)
+        try {
+          const r = await supabase.auth.signInWithPassword({ email: normalizarEmail(email), password: pw })
+          if (r.error) return await fallo()
+          // El rol se lee del servidor, y el PIN lo comprueba el servidor: si es bueno,
+          // solo ESTA sesión tiene poderes de admin.
+          const perfil = await R.perfilActual()
+          if (perfil?.role !== 'admin' || !(await R.verificarPinAdmin(pin))) return await fallo()
+          borrarFallos()
+          await onEntrar()
+        } catch (e) {
+          await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+          setError(errorLegible(e).message)
+        } finally {
+          setCargando(false)
+        }
+      }}
+    >
+      <Campo etiqueta="Email">
+        <input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required autoCapitalize="none" />
+      </Campo>
+      <Campo etiqueta="Contraseña">
+        <input type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} required />
+      </Campo>
+      <Campo etiqueta="PIN de administración">
+        <input
+          type="password"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          pattern="[0-9]*"
+          maxLength={8}
+          value={pin}
+          onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+          required
+        />
+      </Campo>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      <button className="btn primario grande" type="submit" disabled={cargando}>
+        {cargando ? 'Comprobando…' : 'Entrar al panel de admin'}
+      </button>
+      <p className="acceso-alt">
+        ¿Eres entrenador?{' '}
+        <button type="button" className="enlace" onClick={volver}>
+          Vuelve al acceso normal
+        </button>
+      </p>
+    </form>
+  )
+}
+
+function Entrar({ onEntrar, irRegistro, irAdmin }: { onEntrar: () => Promise<void>; irRegistro: () => void; irAdmin: () => void }) {
   const [email, setEmail] = useState('')
   const [pw, setPw] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -71,7 +195,12 @@ function Entrar({ onEntrar, irRegistro }: { onEntrar: () => Promise<void>; irReg
         setError(null)
         setCargando(true)
         try {
-          const r = await supabase.auth.signInWithPassword({ email: normalizarEmail(email), password: pw })
+          let r = await supabase.auth.signInWithPassword({ email: normalizarEmail(email), password: pw })
+          // En localhost: una cuenta que se quedó sin confirmar se confirma sola y se vuelve a intentar.
+          if (r.error && /not confirmed/i.test(r.error.message)) {
+            const local = await sinCorreoEnLocal('confirmar', { email: normalizarEmail(email) })
+            if (local?.ok) r = await supabase.auth.signInWithPassword({ email: normalizarEmail(email), password: pw })
+          }
           if (r.error) {
             // mismo mensaje si no existe o si la contraseña no coincide (no revela qué cuentas existen)
             if (/not confirmed/i.test(r.error.message)) return setError('Confirma tu email: te enviamos un enlace al registrarte.')
@@ -102,6 +231,12 @@ function Entrar({ onEntrar, irRegistro }: { onEntrar: () => Promise<void>; irReg
         ¿Primera vez?{' '}
         <button type="button" className="enlace" onClick={irRegistro}>
           Crea tu cuenta
+        </button>
+      </p>
+      <p className="acceso-alt">
+        ¿Administras el club?{' '}
+        <button type="button" className="enlace" onClick={irAdmin}>
+          Entra al panel de admin
         </button>
       </p>
     </form>
@@ -164,28 +299,32 @@ function Registro({ onEntrar }: { onEntrar: () => Promise<void> }) {
             return
           }
           // El rol NO se envía: el servidor asigna siempre 'player' a las cuentas nuevas.
-          const r = await supabase.auth.signUp({
-            email,
-            password: d.password,
-            options: {
-              emailRedirectTo: location.origin,
-              data: {
-                nombre: d.nombre.trim(),
-                usuario,
-                telefono: normalizarTelefono(d.telefono),
-                entidad: d.entidad.trim(),
-                categoria: d.categoria,
-                equipo: d.equipo.trim(),
-                genero: d.genero,
-                acepta_privacidad: d.aceptaPrivacidad,
-              },
-            },
-          })
+          const datos = {
+            nombre: d.nombre.trim(),
+            usuario,
+            telefono: normalizarTelefono(d.telefono),
+            entidad: d.entidad.trim(),
+            categoria: d.categoria,
+            equipo: d.equipo.trim(),
+            genero: d.genero,
+            acepta_privacidad: d.aceptaPrivacidad,
+          }
+          // En localhost: la cuenta se crea ya confirmada (no llega el correo) y se entra directamente.
+          const local = await sinCorreoEnLocal('registro', { email, password: d.password, data: datos })
+          if (local) {
+            if (!local.ok) return /email/i.test(local.error ?? '') ? setErr({ email: local.error }) : setGeneral(local.error ?? 'No se ha podido crear la cuenta.')
+            const e2 = await supabase.auth.signInWithPassword({ email, password: d.password })
+            if (e2.error) return setGeneral(errorLegible(e2.error).message)
+            return await onEntrar()
+          }
+          const r = await supabase.auth.signUp({ email, password: d.password, options: { emailRedirectTo: location.origin, data: datos } })
           if (r.error) {
             if (/already registered|already exists/i.test(r.error.message)) return setErr({ email: 'Ya hay una cuenta con ese email.' })
             if (/password/i.test(r.error.message)) return setErr({ password: 'La contraseña no cumple los requisitos de seguridad.' })
             return setGeneral(errorLegible(r.error).message)
           }
+          // Modo local: la primera cuenta (admin) arranca con la plantilla de ejemplo para tener algo que ver.
+          if (MODO_LOCAL && r.data.session && (await supabase.from('equipos').select('id')).data?.length === 0) await R.cargarEjemplo()
           if (r.data.session) await onEntrar()
           else setRevisarEmail(true) // confirmación de email activada en Supabase
         } finally {

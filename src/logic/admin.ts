@@ -2,7 +2,7 @@
  * Lógica del panel de administración: filtros, orden, validación y exportación.
  * Funciones puras (sin React ni IndexedDB) para poder probarlas.
  */
-import type { Cuenta, Estado, Jugador, Rol } from '../model/types'
+import type { Cuenta, Estado, Jugador, MiembroEquipo, Rol } from '../model/types'
 import type { DatosExternos, ResumenJugador } from './stats'
 import { tieneConsentimientoFicha } from './privacy'
 import { ESTADO_INFO, POSICION_NOMBRE } from './format'
@@ -40,21 +40,35 @@ export function filaAdmin(j: Jugador, estado: Estado | undefined, r: ResumenJuga
   }
 }
 
-export type FiltroAdmin = 'activos' | 'sin_consentimiento' | 'no_disponibles' | 'sin_evaluar' | 'archivados' | 'todos'
+export type FiltroAdmin = 'activos' | 'atencion' | 'sin_consentimiento' | 'no_disponibles' | 'sin_evaluar' | 'archivados' | 'todos'
+
+/** Los cuatro filtros que se muestran: pocos y claros. */
 export const FILTROS_ADMIN: { id: FiltroAdmin; nombre: string }[] = [
   { id: 'activos', nombre: 'Activos' },
-  { id: 'sin_consentimiento', nombre: 'Sin consentimiento' },
-  { id: 'no_disponibles', nombre: 'No disponibles' },
-  { id: 'sin_evaluar', nombre: `Sin evaluar ${DIAS_SIN_EVALUAR} días` },
+  { id: 'atencion', nombre: 'Necesitan atención' },
   { id: 'archivados', nombre: 'Archivados' },
   { id: 'todos', nombre: 'Todos' },
 ]
+
+export type MotivoAtencion = 'consentimiento' | 'no_disponible' | 'sin_evaluar'
+
+/** Por qué un jugador activo necesita que alguien haga algo (vacío si no necesita nada). */
+export function motivosAtencion(f: FilaAdmin): MotivoAtencion[] {
+  if (f.j.archivado) return []
+  const m: MotivoAtencion[] = []
+  if (!f.consentimiento) m.push('consentimiento')
+  if (f.estado && f.estado.tipo !== 'disponible') m.push('no_disponible')
+  if (f.consentimiento && (f.diasSinEvaluar == null || f.diasSinEvaluar >= DIAS_SIN_EVALUAR)) m.push('sin_evaluar')
+  return m
+}
 
 export function cumpleFiltro(f: FilaAdmin, filtro: FiltroAdmin): boolean {
   const activo = !f.j.archivado
   switch (filtro) {
     case 'todos':
       return true
+    case 'atencion':
+      return motivosAtencion(f).length > 0
     case 'archivados':
       return !activo
     case 'sin_consentimiento':
@@ -169,4 +183,115 @@ export function csvJugadores(filas: FilaAdmin[]): string {
     f.j.archivado ? 'Sí' : 'No',
   ])
   return [cab, ...filasCsv].map((r) => r.map(celdaCsv).join(';')).join('\r\n')
+}
+
+// ───────────── Tipos de acceso (en lugar de casillas sueltas) ─────────────
+
+export type TipoAcceso = 'principal' | 'ayudante' | 'consulta' | 'personalizado'
+
+export const TIPOS_ACCESO: { id: Exclude<TipoAcceso, 'personalizado'>; nombre: string; descripcion: string }[] = [
+  { id: 'principal', nombre: 'Entrenador principal', descripcion: 'Puede todo en su equipo' },
+  { id: 'ayudante', nombre: 'Ayudante', descripcion: 'Ve las fichas y evalúa; no ve notas privadas' },
+  { id: 'consulta', nombre: 'Solo consulta', descripcion: 'Ve las fichas; no evalúa ni ve notas privadas' },
+]
+
+const PERMISOS_DE: Record<Exclude<TipoAcceso, 'personalizado'>, MiembroEquipo['permisos']> = {
+  principal: { verFicha: true, verNotasPrivadas: true, evaluar: true },
+  ayudante: { verFicha: true, verNotasPrivadas: false, evaluar: true },
+  consulta: { verFicha: true, verNotasPrivadas: false, evaluar: false },
+}
+
+/** Qué tipo de acceso tiene un miembro según su rol y permisos. */
+export function tipoAcceso(m: Pick<MiembroEquipo, 'rol' | 'permisos'>): TipoAcceso {
+  if (m.rol === 'entrenador_principal') return 'principal'
+  const p = m.permisos
+  for (const t of ['ayudante', 'consulta'] as const) {
+    const q = PERMISOS_DE[t]
+    if (p.verFicha === q.verFicha && p.evaluar === q.evaluar && p.verNotasPrivadas === q.verNotasPrivadas) return t
+  }
+  return 'personalizado'
+}
+
+/** Aplica un tipo de acceso. Conserva el puesto (preparador físico, coordinador…) si no es el principal. */
+export function conAcceso<M extends Pick<MiembroEquipo, 'rol' | 'permisos'>>(m: M, t: Exclude<TipoAcceso, 'personalizado'>): M {
+  const rol: Rol = t === 'principal' ? 'entrenador_principal' : m.rol === 'entrenador_principal' ? (t === 'ayudante' ? 'ayudante' : 'coordinador') : m.rol
+  return { ...m, rol, permisos: { ...PERMISOS_DE[t] } }
+}
+
+// ───────────── Registro de actividad en lenguaje normal ─────────────
+
+export interface EntradaRegistro {
+  accion: string
+  tabla: string
+  registro_id: string | null
+  cambios: Record<string, unknown> | null
+}
+
+export interface NombresRegistro {
+  jugador: (id: string) => string | undefined
+  /** jugador al que pertenece un estado */
+  jugadorDeEstado: (estadoId: string) => string | undefined
+  persona: (usuarioId: string) => string | undefined
+  equipo: (equipoId: string) => string | undefined
+}
+
+const CAMPO: Record<string, string> = {
+  nombre: 'nombre', apellidos: 'apellidos', dorsal: 'dorsal', consentimiento: 'consentimiento', favorito: 'favorito',
+  archivado: 'archivado', posiciones: 'posiciones', pierna: 'pierna', fechaNacimiento: 'fecha de nacimiento',
+  contactos: 'contactos', tipo: 'estado', desde: 'fecha', vueltaPrevista: 'vuelta prevista', nota: 'nota',
+  rol: 'rol', permisos: 'permisos', foto: 'foto',
+}
+const ESTADO_TXT: Record<string, string> = { disponible: 'disponible', lesionado: 'lesionado', enfermo: 'enfermo', sancionado: 'sancionado' }
+
+export type TipoRegistro = 'jugadores' | 'equipo' | 'roles'
+
+/** Convierte una entrada técnica del registro en una frase ("dio de alta a Lucas (10)"). */
+export function describirRegistro(x: EntradaRegistro, n: NombresRegistro): { texto: string; tipo: TipoRegistro } {
+  const c = (x.cambios ?? {}) as Record<string, { antes?: unknown; despues?: unknown } & unknown>
+  const id = x.registro_id ?? ''
+  const valor = (k: string) => (c[k] as unknown as string | number | undefined) ?? undefined
+  const campos = () =>
+    Object.keys(c)
+      .map((k) => CAMPO[k])
+      .filter(Boolean)
+      .join(', ')
+  switch (x.tabla) {
+    case 'jugadores': {
+      const nombre = n.jugador(id) ?? (valor('nombre') ? `${valor('nombre')}${valor('apellidos') ? ` ${valor('apellidos')}` : ''}` : 'un jugador')
+      const dorsal = valor('dorsal')
+      if (x.accion === 'INSERT') return { texto: `dio de alta a ${nombre}${dorsal != null ? ` (${dorsal})` : ''}`, tipo: 'jugadores' }
+      if (x.accion === 'DELETE') return { texto: `borró a ${nombre} y todos sus datos`, tipo: 'jugadores' }
+      const arch = c.archivado as { despues?: unknown } | undefined
+      if (arch && Object.keys(c).length === 1) return { texto: arch.despues ? `archivó a ${nombre}` : `recuperó a ${nombre}`, tipo: 'jugadores' }
+      return { texto: `editó la ficha de ${nombre}${campos() ? ` (${campos()})` : ''}`, tipo: 'jugadores' }
+    }
+    case 'estados': {
+      const jid = n.jugadorDeEstado(id)
+      const nombre = (jid && n.jugador(jid)) ?? 'un jugador'
+      const tipo = (c.tipo as { despues?: string } | undefined)?.despues ?? (valor('tipo') as string | undefined)
+      if (x.accion === 'DELETE') return { texto: `borró el estado de ${nombre}`, tipo: 'jugadores' }
+      return { texto: tipo ? `marcó a ${nombre} como ${ESTADO_TXT[tipo] ?? tipo}` : `cambió la disponibilidad de ${nombre}`, tipo: 'jugadores' }
+    }
+    case 'miembros': {
+      const [eq, uid] = id.split('/')
+      const persona = n.persona(uid) ?? 'una persona'
+      const equipo = n.equipo(eq) ?? 'un equipo'
+      if (x.accion === 'INSERT') return { texto: `añadió a ${persona} a ${equipo}`, tipo: 'equipo' }
+      if (x.accion === 'DELETE') return { texto: `quitó a ${persona} de ${equipo}`, tipo: 'equipo' }
+      return { texto: `cambió el acceso de ${persona} en ${equipo}`, tipo: 'equipo' }
+    }
+    case 'equipos': {
+      const nombre = n.equipo(id) ?? (valor('nombre') as string | undefined) ?? 'un equipo'
+      if (x.accion === 'INSERT') return { texto: `creó el equipo ${nombre}`, tipo: 'equipo' }
+      if (x.accion === 'DELETE') return { texto: `borró el equipo ${nombre}`, tipo: 'equipo' }
+      return { texto: `editó el equipo ${nombre}`, tipo: 'equipo' }
+    }
+    case 'profiles': {
+      const persona = n.persona(id) ?? 'una cuenta'
+      const r = c.role as { despues?: string } | undefined
+      return { texto: r?.despues === 'admin' ? `nombró administrador a ${persona}` : `quitó el rol de administrador a ${persona}`, tipo: 'roles' }
+    }
+    default:
+      return { texto: `cambió ${x.tabla}`, tipo: 'equipo' }
+  }
 }

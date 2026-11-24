@@ -17,7 +17,11 @@
   --line-2: rgba(227, 233, 238, 0.18);
   --text: #f2f5f7;
   --text-2: #a9b8c5;
-  --text-3: #6f8496;
+  --text-3: #8a9db0;
+  --area-tecnica: #4fb3bf;
+  --area-tactica: #9b8cf2;
+  --area-fisica: #e8775a;
+  --area-mental: #6cc07a;
   --accent: #64bdd9;
   --accent-text: #64bdd9;
   --accent-ink: #0e1c2a;
@@ -41,7 +45,11 @@
   --line-2: rgba(14, 28, 42, 0.2);
   --text: #0e1c2a;
   --text-2: #5b6b78;
-  --text-3: #8796a3;
+  --text-3: #5e6d7a;
+  --area-tecnica: #1d7f8c;
+  --area-tactica: #5b4bc4;
+  --area-fisica: #b4561f;
+  --area-mental: #2b8442;
   --accent: #64bdd9;
   --accent-text: #005a8c;
   --accent-ink: #0e1c2a;
@@ -196,7 +204,7 @@ main {
   font-weight: 600;
 }
 .appbar-equipo span {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--text-2);
   max-width: 140px;
   overflow: hidden;
@@ -290,7 +298,7 @@ main {
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 500;
   letter-spacing: 0.02em;
   color: var(--text-3);
@@ -338,7 +346,7 @@ main {
 .grupo legend {
   margin: 0 0 12px;
   font-family: Inter, sans-serif;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -453,7 +461,7 @@ main {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -509,7 +517,7 @@ main {
   color: var(--ok);
 }
 .tend.baja {
-  color: var(--danger);
+  color: var(--warn); /* nunca rojo sobre un jugador */
 }
 .tend.neutra {
   color: var(--text-3);
@@ -570,7 +578,7 @@ main {
   position: relative;
   margin-top: auto;
   padding-top: 28px;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--text-3);
   text-align: center;
 }
@@ -749,7 +757,7 @@ main {
 /* ───── Inicio ───── */
 .eyebrow {
   display: block;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -829,7 +837,7 @@ main {
 }
 .kpi-e {
   color: var(--text-2);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -884,7 +892,7 @@ main {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 0 0 0 12px;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -914,7 +922,7 @@ main {
 }
 .filtro {
   flex: none;
-  min-height: 34px;
+  min-height: 44px;
   padding: 0 14px;
   border-radius: var(--r-btn);
   border: 1px solid var(--line);
@@ -989,7 +997,7 @@ main {
   color: var(--text-2);
 }
 .tarjeta-pos {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   color: var(--text-3);
@@ -1061,7 +1069,7 @@ main {
   gap: 3px;
 }
 .hero-media .sub {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -1166,7 +1174,7 @@ main {
   flex-direction: column;
 }
 .dato-et {
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1182,7 +1190,7 @@ main {
   color: var(--text-2);
 }
 .dato-fuente {
-  font-size: 0.66rem;
+  font-size: 0.75rem;
   color: var(--text-3);
   margin-top: 4px;
 }
@@ -1314,7 +1322,7 @@ main {
 .grupo-items h3 {
   margin: 12px 0 6px;
   font-family: Inter, sans-serif;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -1325,7 +1333,7 @@ main {
   gap: 6px;
 }
 .chip-btn {
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 14px;
   border-radius: var(--r-btn);
   border: 1px solid var(--line-2);
@@ -1558,7 +1566,7 @@ main {
 }
 .tabla-admin th {
   text-align: left;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1602,7 +1610,7 @@ th[aria-sort] .th-orden {
   opacity: 0.55;
 }
 .tabla-admin .tend {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
 }
 .dorsal-celda {
   font-family: 'Bricolage Grotesque Variable', 'Montserrat', system-ui, sans-serif;
@@ -1781,36 +1789,661 @@ fieldset:disabled .campo input {
   list-style: none;
   padding: 0;
   margin: 0;
+}
+@media (max-width: 560px) {
+  .selector-equipo {
+    max-width: 150px;
+  }
+}
+
+/* ═════ Zona de administración (independiente del panel del entrenador) ═════ */
+.app-admin main {
+  padding: 0;
+}
+.admin-marco {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 24px;
+  padding: 16px;
+  align-items: start;
+}
+.admin-menu {
+  position: sticky;
+  top: 76px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  border-radius: var(--r-card);
+  background: linear-gradient(170deg, #0e1c2a, #142638);
+  border: 1px solid rgba(100, 189, 217, 0.18);
+  color: #f2f5f7;
+}
+.admin-menu-tit {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #64bdd9;
+  padding: 4px 10px 10px;
+}
+.admin-menu a,
+.admin-menu .admin-salir {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 12px;
+  color: rgba(242, 245, 247, 0.78);
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.admin-menu a:hover,
+.admin-menu .admin-salir:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+.admin-menu a.on {
+  background: #64bdd9;
+  color: #0e1c2a;
+}
+.admin-menu .admin-salir {
+  margin-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0 0 12px 12px;
+  padding-top: 4px;
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+.admin-contenido {
+  min-width: 0;
+}
+.admin-sin-menu {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+.admin-equipo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.admin-equipo select,
+.selector-acceso {
+  min-height: 40px;
+  border-radius: var(--r-input);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 10px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.88rem;
+}
+
+/* Resumen */
+.admin-tarjetas {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin: 8px 0 14px;
+}
+.admin-tarjeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  border-radius: var(--r-card);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  transition: transform 0.15s, border-color 0.15s;
+}
+.admin-tarjeta:hover {
+  transform: translateY(-2px);
+  border-color: var(--line-2);
+}
+.admin-tarjeta-v {
+  font-family: 'Bricolage Grotesque Variable', 'Montserrat', system-ui, sans-serif;
+  font-size: 2.2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.admin-tarjeta-e {
+  font-size: 0.8rem;
+  color: var(--text-2);
+  font-weight: 600;
+}
+.admin-tarjeta.aviso {
+  border-color: color-mix(in srgb, var(--warn) 55%, transparent);
+  background: color-mix(in srgb, var(--warn) 8%, var(--surface));
+}
+.admin-tarjeta.aviso .admin-tarjeta-v {
+  color: var(--warn);
+}
+.admin-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.motivos {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+.chip.peligro {
+  color: var(--warn); /* nunca rojo sobre un jugador */
+  border-color: color-mix(in srgb, var(--warn) 50%, transparent);
+}
+.chip.neutro {
+  color: var(--text-2);
+}
+
+/* Jugadores */
+.admin-filtro {
+  margin: 4px 0 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.admin-filtro button {
+  white-space: nowrap;
+  padding: 0 12px;
+}
+.admin-buscar {
+  width: 100%;
+  margin-bottom: 4px;
+}
+.tabla-admin {
+  min-width: 0;
+}
+.admin-pie {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Ficha del jugador: secciones plegables con resumen */
+.seccion {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-card);
-  overflow: hidden;
+  box-shadow: var(--shadow);
 }
-.actividad li {
+.seccion > summary {
   display: grid;
-  grid-template-columns: 120px 1fr;
-  gap: 10px;
-  padding: 10px 14px;
-  border-top: 1px solid var(--line);
-  font-size: 0.88rem;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  list-style: none;
 }
-.actividad li:first-child {
-  border-top: 0;
+.seccion > summary::-webkit-details-marker {
+  display: none;
 }
-.actividad-fecha {
+.seccion-tit {
+  font-weight: 700;
+}
+.seccion-res {
+  color: var(--text-2);
+  font-size: 0.86rem;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.seccion-res.aviso {
+  color: var(--warn);
+}
+.seccion-flecha {
+  transform: rotate(-90deg);
   color: var(--text-3);
+  transition: transform 0.15s;
+}
+.seccion[open] .seccion-flecha {
+  transform: rotate(90deg);
+}
+.seccion-cuerpo {
+  padding: 0 16px 16px;
+}
+.grupo.plano {
+  border: 0;
+  padding: 0;
+  background: none;
+}
+
+/* Entrenadores */
+.bloque.destacado {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
+.fila-cuenta {
+  flex-wrap: wrap;
+}
+.avatar.redondo {
+  border-radius: 50%;
+}
+.miembros-lista {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.miembro-fila {
+  border-top: 1px solid var(--line);
+  padding: 10px 0;
+}
+.miembro-fila:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.miembro-linea {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.miembro-linea .crece {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.miembro-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.miembro-chips .sub {
+  margin: 0;
+  font-size: 0.78rem;
+}
+.mas-opciones {
+  margin: 6px 0 0 52px;
+}
+.mas-opciones > summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent-text);
+  width: fit-content;
+}
+.mas-opciones-cuerpo {
+  display: grid;
+  gap: 10px;
+  padding: 10px 0 4px;
+}
+.peligro-txt {
+  color: var(--danger);
+}
+.bloque.plegable > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.bloque.plegable > summary::-webkit-details-marker {
+  display: none;
+}
+.bloque.plegable > summary h2 {
+  margin: 0;
+}
+.bloque.plegable[open] > summary h2 {
+  margin-bottom: 12px;
+}
+.aviso-flotante {
+  padding: 10px 14px;
+  border-radius: var(--r-input);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  margin: 0 0 10px;
+}
+
+/* Actividad */
+.actividad-fila {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+  font-size: 0.9rem;
+}
+.actividad-fila:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.actividad-punto {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translateY(-1px);
+}
+.actividad-punto.equipo {
+  background: var(--ok);
+}
+.actividad-punto.roles {
+  background: var(--warn);
+}
+.actividad-hora {
+  color: var(--text-3);
+  font-size: 0.78rem;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.actividad code {
-  font-size: 0.78rem;
-  color: var(--text-2);
+
+@media (max-width: 900px) {
+  .admin-marco {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 0 16px 16px;
+  }
+  .admin-menu {
+    top: 60px;
+    z-index: 15;
+    flex-direction: row;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 6px;
+    margin: 0 -16px;
+    border-radius: 0;
+    border-width: 0 0 1px;
+  }
+  .admin-menu-tit {
+    display: none;
+  }
+  .admin-menu a,
+  .admin-menu .admin-salir {
+    flex: none;
+    min-height: 40px;
+    font-size: 0.86rem;
+  }
+  .admin-menu .admin-salir {
+    margin: 0 0 0 auto;
+    border: 0;
+    border-radius: 12px;
+    padding-top: 0;
+  }
+  .admin-tarjetas {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 @media (max-width: 560px) {
-  .actividad li {
-    grid-template-columns: 1fr;
-    gap: 2px;
+  .admin-menu a span,
+  .admin-menu .admin-salir span {
+    display: none;
   }
-  .selector-equipo {
-    max-width: 150px;
+  .admin-menu a.on span {
+    display: inline;
+  }
+  .col-estado,
+  .col-media {
+    display: none;
+  }
+  .tabla-admin td,
+  .tabla-admin th {
+    padding: 8px;
+  }
+  .celda-jugador {
+    min-width: 0;
+  }
+  .mas-opciones {
+    margin-left: 0;
+  }
+  .miembro-linea {
+    flex-wrap: wrap;
+  }
+  .seccion > summary {
+    grid-template-columns: 1fr auto;
+  }
+  .seccion-res {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    text-align: left;
+  }
+}
+
+/* Evaluación rápida: plantillas de un toque */
+.plantillas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.plantilla {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left;
+  padding: 12px;
+  border-radius: var(--r-input);
+  border: 1.5px solid var(--line-2);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+.plantilla span {
+  font-size: 0.76rem;
+  color: var(--text-2);
+  line-height: 1.3;
+}
+.plantilla.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+}
+.plantilla.on strong {
+  color: var(--accent-text);
+}
+.bloque .mas-opciones {
+  margin: 4px 0 0;
+}
+/* Sin conexión: franja discreta bajo la barra superior */
+.estado-conexion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 16px 0;
+  padding: 8px 14px;
+  border-radius: var(--r-input);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--text);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+.estado-conexion.sin-red {
+  border-color: color-mix(in srgb, var(--warn) 55%, transparent);
+  background: color-mix(in srgb, var(--warn) 10%, var(--surface));
+}
+.estado-conexion-punto {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: latido 1.6s ease-in-out infinite;
+}
+.estado-conexion.sin-red .estado-conexion-punto {
+  background: var(--warn);
+  animation: none;
+}
+@keyframes latido {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .estado-conexion-punto {
+    animation: none;
+  }
+}
+/* ═════ Evaluación rápida: contador, etiquetas y deshacer ═════ */
+.progreso-caja {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.eval-contador {
+  font-size: 0.9rem;
+  color: var(--text-2);
+}
+.eval-contador strong {
+  font-family: 'Bricolage Grotesque Variable', 'Montserrat', system-ui, sans-serif;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+.nota {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 64px;
+  padding: 6px 2px;
+}
+.nota-v {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+.nota-e {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--text-2);
+  text-align: center;
+}
+.nota.on .nota-e {
+  color: var(--accent-ink);
+}
+.deshacer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 0 0;
+  padding: 8px 8px 8px 14px;
+  border-radius: var(--r-input);
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  overflow: hidden;
+  font-size: 0.9rem;
+  animation: aparecer 0.18s ease-out;
+}
+.deshacer .btn {
+  min-height: 40px;
+}
+.deshacer-barra {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  animation: consumir linear forwards;
+}
+@keyframes consumir {
+  to {
+    transform: scaleX(0);
+  }
+}
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* ═════ Navegación de 4 pestañas ═════ */
+.tabbar.tabbar-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+.tab.tab-evaluar svg {
+  color: var(--accent-text);
+}
+.tab.tab-evaluar {
+  color: var(--text-2);
+}
+.cargando-pantalla {
+  padding: 48px 0;
+  text-align: center;
+  color: var(--text-2);
+}
+
+/* ═════ Inicio rediseñado ═════ */
+.cta.cta-principal {
+  padding: 22px 18px 22px 22px;
+  margin: 6px 0 14px;
+}
+.cta-principal .cta-txt strong {
+  font-size: 2.1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.cta-principal .cta-mas {
+  width: 56px;
+  height: 56px;
+}
+.alertas {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.alerta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  min-height: 56px;
+}
+.alertas li:first-child .alerta {
+  border-top: 0;
+  padding-top: 0;
+}
+.alerta .avatar {
+  border-radius: 50%;
+}
+.alerta-txt {
+  flex: 1;
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+@media (prefers-reduced-motion: reduce) {
+  .deshacer,
+  .deshacer-barra {
+    animation: none;
+  }
+}
+
+/* "Cerrar sesión" del menú de admin es un botón: sin aspecto de botón del navegador */
+button.admin-salir {
+  width: 100%;
+  background: none;
+  border: 0;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+@media (max-width: 900px) {
+  button.admin-salir {
+    width: auto;
   }
 }

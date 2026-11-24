@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Icon } from '../ui/Icon'
 import { useApp } from '../state/store'
 import { ir, volver } from '../state/router'
-import { Avatar, BarrasArea, Cabecera, Dato, Enlace, EstadoChip, RadarAreas, Tendencia, Vacio } from '../ui/components'
+import { Avatar, BarrasArea, Cabecera, Dato, Enlace, EstadoChip, Tendencia, Vacio } from '../ui/components'
+import { RadarAreas } from '../ui/RadarAreas'
 import { POSICION_NOMBRE, edad, fechaCorta, fechaLarga, num0, num1, pct } from '../logic/format'
-import { mediaEquipoPorArea } from '../logic/stats'
 import { puedeVerFicha, puedeVerNota, tieneConsentimientoFicha, validarConsentimiento } from '../logic/privacy'
 import type { Consentimiento, FirmanteTipo, Jugador as TJugador } from '../model/types'
 
@@ -93,7 +93,8 @@ function Resumen({ j }: { j: TJugador }) {
   const { resumen, externos, estadoDe, ds } = useApp()
   const r = resumen.get(j.id)!
   const x = externos.get(j.id)!
-  const equipo = useMemo(() => mediaEquipoPorArea([...resumen.values()].filter((v) => v.media != null)), [resumen])
+  // Cada jugador se compara consigo mismo (hace 30 días), nunca con la media de sus compañeros.
+  const antes = r.areasAnteriores ?? undefined
   const est = estadoDe(j.id)
   const ultima = ds.evaluaciones.filter((e) => e.jugadorId === j.id).sort((a, b) => b.fecha.localeCompare(a.fecha))[0]
   const nombreItem = (id: string) => ds.items.find((i) => i.id === id)?.nombre ?? id
@@ -109,9 +110,9 @@ function Resumen({ j }: { j: TJugador }) {
       )}
       <section className="bloque">
         <h2>Áreas</h2>
-        <RadarAreas areas={r.areas} comparar={equipo} />
-        <BarrasArea areas={r.areas} comparar={equipo} />
-        <p className="nota-pie">La raya vertical marca la media del equipo. {r.numEvaluaciones} evaluaciones{r.ultimaEvaluacion && `, la última el ${fechaCorta(r.ultimaEvaluacion)}`}.</p>
+        <RadarAreas areas={r.areas} comparar={antes} etiquetaComparar="Hace 30 días" />
+        <BarrasArea areas={r.areas} comparar={antes} />
+        <p className="nota-pie">{antes ? 'La línea discontinua y la raya vertical marcan cómo estaba hace 30 días. ' : 'Aún no hay evaluaciones de hace 30 días para comparar. '}{r.numEvaluaciones} evaluaciones{r.ultimaEvaluacion && `, la última el ${fechaCorta(r.ultimaEvaluacion)}`}.</p>
         <div className="botones">
           <Enlace to={{ nombre: 'evolucion', id: j.id }} className="btn">
             Ver evolución

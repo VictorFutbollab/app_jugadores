@@ -1,4 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { crearClienteLocal } from './local'
 
 /**
  * Cliente de Supabase. La URL y la clave pública (anon / publishable) van en
@@ -11,16 +12,26 @@ import { createClient } from '@supabase/supabase-js'
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
 const clave = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
 
-export const supabaseConfigurado = !!url && !!clave
+/**
+ * Modo local: en `npm run dev` las cuentas y los datos se guardan en este navegador
+ * (src/db/local.ts) y no hace falta confirmar el email. Para probar contra Supabase
+ * en localhost, pon VITE_MODO_LOCAL=0 en .env.local. En la web publicada
+ * (import.meta.env.DEV = false) esto no existe: siempre se usa Supabase.
+ */
+export const MODO_LOCAL = import.meta.env.DEV && import.meta.env.VITE_MODO_LOCAL !== '0'
 
-export const supabase = createClient(url || 'http://localhost:54321', clave || 'sin-configurar', {
-  auth: {
-    persistSession: true, // guarda los tokens de sesión, nunca el rol
-    autoRefreshToken: true,
-    detectSessionInUrl: true, // enlaces de confirmación de email
-    flowType: 'pkce', // ?code= en la URL: no choca con el enrutado por # de la app
-  },
-})
+export const supabaseConfigurado = MODO_LOCAL || (!!url && !!clave)
+
+export const supabase: SupabaseClient = MODO_LOCAL
+  ? (crearClienteLocal() as unknown as SupabaseClient)
+  : createClient(url || 'http://localhost:54321', clave || 'sin-configurar', {
+      auth: {
+        persistSession: true, // guarda los tokens de sesión, nunca el rol
+        autoRefreshToken: true,
+        detectSessionInUrl: true, // enlaces de confirmación de email
+        flowType: 'pkce', // ?code= en la URL: no choca con el enrutado por # de la app
+      },
+    })
 
 /** Convierte los errores del servidor en mensajes que entiende un entrenador. */
 export function errorLegible(e: unknown): Error {

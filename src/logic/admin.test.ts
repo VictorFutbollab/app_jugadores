@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { crearDatosEjemplo, EQUIPO_ID } from '../data/seed'
 import { datosExternos, resumenJugador } from './stats'
-import { celdaCsv, csvJugadores, cumpleFiltro, coincideBusqueda, dorsalLibre, filaAdmin, ordenarFilas, quedaAlgunAdmin, validarJugador } from './admin'
+import { celdaCsv, conAcceso, csvJugadores, cumpleFiltro, coincideBusqueda, describirRegistro, dorsalLibre, filaAdmin, motivosAtencion, ordenarFilas, quedaAlgunAdmin, tipoAcceso, validarJugador } from './admin'
 
 const hoy = new Date('2026-11-19T10:00:00Z')
 const ds = crearDatosEjemplo(hoy)
@@ -68,5 +68,36 @@ describe('panel de admin · cuentas (aviso en la interfaz; la regla real está e
     expect(quedaAlgunAdmin(cs, 'a', false)).toBe(false)
     expect(quedaAlgunAdmin(cs, 'b', true)).toBe(true)
     expect(quedaAlgunAdmin([...cs, { id: 'c', role: 'admin' as const }], 'a', false)).toBe(true)
+  })
+})
+
+describe('panel de admin · simplificación', () => {
+  it('"Necesitan atención" junta sin consentimiento, no disponibles y sin evaluar, con el motivo', () => {
+    const atencion = filas.filter((f) => cumpleFiltro(f, 'atencion'))
+    const dorsales = atencion.map((f) => f.j.dorsal)
+    for (const d of [18, 5, 14, 16]) expect(dorsales).toContain(d)
+    expect(motivosAtencion(filas.find((f) => f.j.dorsal === 18)!)).toEqual(['consentimiento'])
+    expect(motivosAtencion(filas.find((f) => f.j.dorsal === 5)!)).toContain('no_disponible')
+    expect(motivosAtencion({ ...filas[0], j: { ...filas[0].j, archivado: true } })).toEqual([])
+  })
+  it('tipos de acceso en lugar de casillas: se detectan y se aplican', () => {
+    const ay = { rol: 'ayudante' as const, permisos: { verFicha: true, verNotasPrivadas: false, evaluar: true } }
+    expect(tipoAcceso(ay)).toBe('ayudante')
+    expect(tipoAcceso({ ...ay, permisos: { ...ay.permisos, evaluar: false } })).toBe('consulta')
+    expect(tipoAcceso({ ...ay, permisos: { verFicha: false, verNotasPrivadas: true, evaluar: false } })).toBe('personalizado')
+    expect(tipoAcceso(conAcceso(ay, 'principal'))).toBe('principal')
+    const pf = conAcceso({ rol: 'preparador_fisico' as const, permisos: ay.permisos }, 'consulta')
+    expect(pf.rol).toBe('preparador_fisico') // conserva el puesto
+    expect(conAcceso({ rol: 'entrenador_principal' as const, permisos: ay.permisos }, 'ayudante').rol).toBe('ayudante')
+  })
+  it('el registro de actividad se lee como frases', () => {
+    const n = { jugador: (id: string) => (id === 'j-10' ? 'Lucas Serrano' : undefined), jugadorDeEstado: () => 'j-10', persona: () => 'Ana', equipo: () => 'Infantil A' }
+    expect(describirRegistro({ accion: 'INSERT', tabla: 'jugadores', registro_id: 'j-99', cambios: { nombre: 'Unai', dorsal: 18 } }, n).texto).toBe('dio de alta a Unai (18)')
+    expect(describirRegistro({ accion: 'UPDATE', tabla: 'jugadores', registro_id: 'j-10', cambios: { dorsal: { antes: 10, despues: 11 } } }, n).texto).toBe('editó la ficha de Lucas Serrano (dorsal)')
+    expect(describirRegistro({ accion: 'UPDATE', tabla: 'jugadores', registro_id: 'j-10', cambios: { archivado: { antes: false, despues: true } } }, n).texto).toBe('archivó a Lucas Serrano')
+    expect(describirRegistro({ accion: 'UPDATE', tabla: 'estados', registro_id: 'st-j-10', cambios: { tipo: { antes: 'disponible', despues: 'lesionado' } } }, n).texto).toBe('marcó a Lucas Serrano como lesionado')
+    expect(describirRegistro({ accion: 'INSERT', tabla: 'miembros', registro_id: 'eq/u1', cambios: { rol: 'ayudante' } }, n).texto).toBe('añadió a Ana a Infantil A')
+    const rol = describirRegistro({ accion: 'CAMBIO_ROL', tabla: 'profiles', registro_id: 'u1', cambios: { role: { antes: 'player', despues: 'admin' } } }, n)
+    expect(rol).toEqual({ texto: 'nombró administrador a Ana', tipo: 'roles' })
   })
 })

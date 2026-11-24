@@ -7,6 +7,7 @@
  *   $env:SUPABASE_URL = "https://xxxx.supabase.co"
  *   $env:SUPABASE_ANON_KEY = "<clave pública>"
  *   $env:SUPABASE_SERVICE_ROLE_KEY = "<service_role>"   # solo para crear y borrar los usuarios de prueba
+ *   $env:ADMIN_PIN = "<PIN de administración>"
  *   node scripts/probar-seguridad.mjs
  *
  * Crea 3 usuarios de prueba (admin, entrenador A y entrenador B) y 2 equipos, ejecuta
@@ -18,8 +19,9 @@ import { randomUUID } from 'node:crypto'
 const URL_SB = process.env.SUPABASE_URL
 const ANON = process.env.SUPABASE_ANON_KEY
 const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY
-if (!URL_SB || !ANON || !SERVICE) {
-  console.log('Faltan SUPABASE_URL, SUPABASE_ANON_KEY o SUPABASE_SERVICE_ROLE_KEY en el entorno.')
+const PIN = process.env.ADMIN_PIN // PIN de administración del proyecto (se fija con admin_fijar_pin)
+if (!URL_SB || !ANON || !SERVICE || !PIN) {
+  console.log('Faltan SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY o ADMIN_PIN en el entorno.')
   process.exit(2)
 }
 
@@ -136,6 +138,12 @@ try {
   console.log('\n6 · El admin inicia sesión y gestiona')
   const adm = await entrar('admin')
   ok((await adm.from('profiles').select('role').eq('id', ids.admin).single()).data?.role === 'admin', 'su rol en el servidor es admin')
+  // Sin PIN, una cuenta admin no tiene poderes de admin.
+  ok((await adm.from('jugadores').select('id').in('equipo_id', [EQ_A, EQ_B])).data?.length === 0, 'sin PIN no ve los equipos de otros')
+  ok(rechazado(await adm.rpc('admin_set_role', { objetivo: ids.b, nuevo: 'admin' })), 'sin PIN no puede cambiar roles')
+  ok((await adm.rpc('admin_verificar_pin', { pin: '0000' })).data === false, 'con un PIN incorrecto no entra')
+  ok((await a.rpc('admin_verificar_pin', { pin: PIN })).data === false, 'un usuario normal no se hace admin aunque sepa el PIN')
+  ok((await adm.rpc('admin_verificar_pin', { pin: PIN })).data === true, 'con el PIN correcto entra como admin')
   ok((await adm.from('jugadores').select('id').in('equipo_id', [EQ_A, EQ_B])).data?.length === 2, 've los jugadores de todos los equipos')
   ok(!(await adm.from('jugadores').insert({ id: `${EQ_A}-j2`, equipo_id: EQ_A, data: { nombre: 'Alta', dorsal: 2 } })).error, 'da de alta un jugador')
   ok(!(await adm.rpc('admin_set_role', { objetivo: ids.b, nuevo: 'admin' })).error, 'nombra admin a otro')

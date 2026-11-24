@@ -105,3 +105,21 @@ describe('acceso', async () => {
   })
   // Contraseñas, sesiones y roles: Supabase Auth + supabase/tests/rls.test.ts
 })
+
+describe('evaluaciones vacías (nota quitada o deshecha)', () => {
+  it('no cuentan para la media, la tendencia ni la última evaluación', () => {
+    const j = ds.jugadores.find((x) => x.dorsal === 10)!
+    const antes = resumenJugador(j, ds.evaluaciones, ds.items, new Date('2026-11-19T10:00:00Z'))
+    const vacia = { ...ds.evaluaciones[0], id: 'vacia', jugadorId: j.id, fecha: '2026-11-19T09:00:00Z', puntuaciones: [] }
+    const despues = resumenJugador(j, [...ds.evaluaciones, vacia], ds.items, new Date('2026-11-19T10:00:00Z'))
+    expect(despues.media).toBe(antes.media)
+    expect(despues.numEvaluaciones).toBe(antes.numEvaluaciones)
+    expect(despues.ultimaEvaluacion).toBe(antes.ultimaEvaluacion)
+  })
+  it('cada jugador se compara consigo mismo: áreas de hace 30 días', () => {
+    const j = ds.jugadores.find((x) => x.dorsal === 10)!
+    const r = resumenJugador(j, ds.evaluaciones, ds.items, new Date('2026-11-19T10:00:00Z'))
+    expect(r.areasAnteriores).not.toBeNull()
+    expect(Object.keys(r.areasAnteriores!).sort()).toEqual(['fisica', 'mental', 'tactica', 'tecnica'])
+  })
+})

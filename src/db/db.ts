@@ -19,11 +19,14 @@ export const ALMACENES_LOCALES = [
 ] as const
 
 let dbp: Promise<IDBPDatabase> | null = null
-function db() {
-  // v5 (> v4 de la versión local publicada): solo asegura "ajustes"; no toca nada más.
-  dbp ??= openDB('futbollab-jugadores', 5, {
+export function db() {
+  // v6: añade "copia" (últimos datos vistos, para abrir sin cobertura) y "cola" (notas
+  // pendientes de subir). Solo crea lo que falta: nunca borra nada de versiones anteriores.
+  dbp ??= openDB('futbollab-jugadores', 6, {
     upgrade(d) {
       if (!d.objectStoreNames.contains('ajustes')) d.createObjectStore('ajustes')
+      if (!d.objectStoreNames.contains('copia')) d.createObjectStore('copia')
+      if (!d.objectStoreNames.contains('cola')) d.createObjectStore('cola', { keyPath: 'id' }).createIndex('usuario', 'usuario')
     },
   })
   return dbp

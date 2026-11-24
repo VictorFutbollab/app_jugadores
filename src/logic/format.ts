@@ -14,12 +14,12 @@ export const AREA_CORTO: Record<Area, string> = {
   fisica: 'Física',
   mental: 'Mental',
 }
-/** Colores fijos por área (comprobados para contraste sobre #0F1A14 y blanco). */
+/** Colores por área: variables CSS con versión para modo oscuro y claro (contraste ≥ 3:1 en ambos). */
 export const AREA_COLOR: Record<Area, string> = {
-  tecnica: '#4FB3BF',
-  tactica: '#9B8CF2',
-  fisica: '#E8775A',
-  mental: '#6CC07A',
+  tecnica: 'var(--area-tecnica)',
+  tactica: 'var(--area-tactica)',
+  fisica: 'var(--area-fisica)',
+  mental: 'var(--area-mental)',
 }
 
 export const POSICION_NOMBRE: Record<Posicion, string> = {
@@ -39,7 +39,7 @@ export const POSICION_ORDEN: Posicion[] = ['POR', 'LD', 'DFC', 'LI', 'MCD', 'MC'
 
 export const ESTADO_INFO: Record<TipoEstado, { nombre: string; icono: string; color: string }> = {
   disponible: { nombre: 'Disponible', icono: '✓', color: 'var(--ok)' },
-  lesionado: { nombre: 'Lesionado', icono: '✚', color: 'var(--danger)' },
+  lesionado: { nombre: 'Lesionado', icono: '✚', color: 'var(--warn)' }, // nunca rojo sobre un jugador
   enfermo: { nombre: 'Enfermo', icono: '●', color: 'var(--warn)' },
   sancionado: { nombre: 'Sancionado', icono: '■', color: 'var(--warn)' },
 }

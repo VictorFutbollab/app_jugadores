@@ -7,6 +7,7 @@
  * manipule este código desde el navegador.
  */
 import { errorLegible, supabase } from './supabase'
+import { esErrorDeRed } from './offline'
 import { crearDatosEjemplo, prefijarIds, type Dataset } from '../data/seed'
 import { ITEMS_POR_DEFECTO } from '../data/items'
 import type { Consentimiento, Cuenta, Equipo, Genero, MiembroEquipo, RolApp, Usuario } from '../model/types'
@@ -76,6 +77,8 @@ const aCuenta = (p: FilaPerfil): Cuenta => ({
  */
 export async function perfilActual(): Promise<Cuenta | null> {
   const { data, error } = await supabase.auth.getUser()
+  // Sin señal no es "sin sesión": se lanza para que la app abra con la copia local.
+  if (error && esErrorDeRed(error)) throw error
   if (error || !data.user) return null
   const r = await supabase.from('profiles').select('*').eq('id', data.user.id).maybeSingle()
   if (r.error) throw errorLegible(r.error)
@@ -189,6 +192,15 @@ export async function registrarConsentimiento(id: string, c: Consentimiento, fec
 }
 
 // ───────────── Administración (el servidor exige rol admin en cada una) ─────────────
+
+/**
+ * Comprueba el PIN de administración en el servidor. Si es correcto (y la cuenta es
+ * admin), ESTA sesión pasa a tener poderes de admin; ninguna otra. Tras 5 fallos el
+ * servidor bloquea 15 minutos y lanza un error con el aviso.
+ */
+export async function verificarPinAdmin(pin: string): Promise<boolean> {
+  return ok(await supabase.rpc('admin_verificar_pin', { pin })) === true
+}
 
 export async function guardarMiembro(m: MiembroEquipo) {
   ok(await supabase.from('miembros').upsert({ equipo_id: m.equipoId, usuario_id: m.usuarioId, rol: m.rol, permisos: m.permisos }, { onConflict: 'equipo_id,usuario_id' }))

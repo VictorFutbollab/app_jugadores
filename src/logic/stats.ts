@@ -84,24 +84,28 @@ export interface ResumenJugador {
   mediaAnterior: number | null
   /** Diferencia con la media de hace 30 días (null si no hay datos para comparar). */
   tendencia: number | null
+  /** Cómo estaba cada área hace 30 días: cada jugador se compara consigo mismo, nunca con otros. */
+  areasAnteriores: AreaScores | null
   ultimaEvaluacion: string | null
   numEvaluaciones: number
 }
 
 export function resumenJugador(j: Jugador, evals: Evaluacion[], items: ItemEvaluacion[], hoy = new Date()): ResumenJugador {
   const e = edad(j.fechaNacimiento, hoy) ?? 12
-  const propias = evals.filter((x) => x.jugadorId === j.id && !x.eliminadoEn)
+  const propias = evals.filter((x) => x.jugadorId === j.id && !x.eliminadoEn && x.puntuaciones.length > 0) // las vacías no cuentan
   const areas = puntuacionesPorArea(ultimasPuntuaciones(propias), items, e)
   const media = mediaGeneral(areas, e)
   const corte = new Date(hoy.getTime() - 30 * DIA).toISOString()
   const antes = propias.filter((x) => x.fecha <= corte)
-  const mediaAnterior = antes.length ? mediaGeneral(puntuacionesPorArea(ultimasPuntuaciones(antes), items, e), e) : null
+  const areasAnteriores = antes.length ? puntuacionesPorArea(ultimasPuntuaciones(antes), items, e) : null
+  const mediaAnterior = areasAnteriores ? mediaGeneral(areasAnteriores, e) : null
   const ult = propias.reduce<string | null>((m, x) => (m == null || x.fecha > m ? x.fecha : m), null)
   return {
     areas,
     media,
     mediaAnterior,
     tendencia: media != null && mediaAnterior != null ? media - mediaAnterior : null,
+    areasAnteriores,
     ultimaEvaluacion: ult,
     numEvaluaciones: propias.length,
   }
@@ -110,7 +114,7 @@ export function resumenJugador(j: Jugador, evals: Evaluacion[], items: ItemEvalu
 /** Serie temporal por área: un punto en cada fecha con evaluación. */
 export function serieEvolucion(j: Jugador, evals: Evaluacion[], items: ItemEvaluacion[]) {
   const e = edad(j.fechaNacimiento) ?? 12
-  const propias = evals.filter((x) => x.jugadorId === j.id && !x.eliminadoEn)
+  const propias = evals.filter((x) => x.jugadorId === j.id && !x.eliminadoEn && x.puntuaciones.length > 0) // las vacías no cuentan
   const fechas = [...new Set(propias.map((x) => x.fecha.slice(0, 10)))].sort()
   return fechas.map((f) => {
     const sc = puntuacionesPorArea(ultimasPuntuaciones(propias, `${f}T23:59:59`), items, e)

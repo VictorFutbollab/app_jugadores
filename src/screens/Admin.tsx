@@ -1,34 +1,56 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useApp } from '../state/store'
-import { href, ir, volver } from '../state/router'
-import { Avatar, Cabecera, EstadoChip, Tendencia, Vacio } from '../ui/components'
-import { Icon } from '../ui/Icon'
+import { href, ir, volver, type Ruta } from '../state/router'
+import { Avatar, Cabecera, EstadoChip, Vacio } from '../ui/components'
+import { Icon, type NombreIcono } from '../ui/Icon'
 import { Campo, CamposEquipo } from './Acceso'
 import * as R from '../db/remote'
 import { categoria } from '../data/categorias'
 import type { Errores } from '../auth/auth'
-import { ESTADO_INFO, POSICION_NOMBRE, POSICION_ORDEN, fechaCorta, fechaLarga, iniciales, num0, num1, pct, uid } from '../logic/format'
+import { ESTADO_INFO, POSICION_NOMBRE, POSICION_ORDEN, fechaCorta, fechaLarga, iniciales, num1, uid } from '../logic/format'
 import { tieneConsentimientoFicha, validarConsentimiento } from '../logic/privacy'
 import {
-  DIAS_SIN_EVALUAR,
   FILTROS_ADMIN,
   ROLES,
   ROL_NOMBRE,
+  TIPOS_ACCESO,
   coincideBusqueda,
+  conAcceso,
   csvJugadores,
   cumpleFiltro,
+  describirRegistro,
   dorsalLibre,
   filaAdmin,
+  motivosAtencion,
   ordenarFilas,
   quedaAlgunAdmin,
+  tipoAcceso,
   validarJugador,
   type ErroresJugador,
+  type FilaAdmin,
   type FiltroAdmin,
+  type MotivoAtencion,
   type OrdenAdmin,
+  type TipoAcceso,
+  type TipoRegistro,
 } from '../logic/admin'
 import type { Consentimiento, ContactoFamilia, Cuenta, Estado, FirmanteTipo, Genero, Jugador, MiembroEquipo, Pierna, Posicion, Rol, TipoEstado } from '../model/types'
 
 const hoyISO = () => new Date().toISOString().slice(0, 10)
+
+/** Bloque plegable con resumen de una línea: se ve todo de un vistazo y se abre solo lo que se quiere cambiar. */
+function Seccion({ titulo, resumen, abierta, aviso, children }: { titulo: string; resumen: ReactNode; abierta?: boolean; aviso?: boolean; children: ReactNode }) {
+  return (
+    <details className="seccion" open={abierta}>
+      <summary>
+        <span className="seccion-tit">{titulo}</span>
+        <span className={`seccion-res ${aviso ? 'aviso' : ''}`}>{resumen}</span>
+        <Icon n="atras" size={18} className="seccion-flecha" />
+      </summary>
+      <div className="seccion-cuerpo">{children}</div>
+    </details>
+  )
+}
 
 /**
  * Segunda barrera en la interfaz (la primera es la redirección en App.tsx).
@@ -36,94 +58,214 @@ const hoyISO = () => new Date().toISOString().slice(0, 10)
  * cada lectura y escritura de administración la rechaza la base de datos.
  */
 function SinPermiso() {
+  const { cerrarSesion } = useApp()
   return (
     <>
-      <Cabecera titulo="Administración" atras={() => volver({ nombre: 'inicio' })} />
+      <Cabecera titulo="Administración" />
       <Vacio>Solo los administradores del club pueden entrar aquí.</Vacio>
+      <button className="btn ancho" onClick={cerrarSesion}>
+        <Icon n="salir" /> Cerrar sesión
+      </button>
     </>
   )
 }
 
 // ═════════════════════════ Panel ═════════════════════════
 
-export type SeccionAdmin = 'jugadores' | 'entrenadores' | 'actividad'
+export type SeccionAdmin = 'resumen' | 'jugadores' | 'entrenadores' | 'actividad'
 
-export function Admin({ seccion = 'jugadores' }: { seccion?: SeccionAdmin }) {
-  const { esAdmin, equipos, equipoActivo, setEquipoActivo } = useApp()
+const MENU: { id: SeccionAdmin; nombre: string; icono: NombreIcono }[] = [
+  { id: 'resumen', nombre: 'Resumen', icono: 'inicio' },
+  { id: 'jugadores', nombre: 'Jugadores', icono: 'plantilla' },
+  { id: 'entrenadores', nombre: 'Entrenadores', icono: 'familia' },
+  { id: 'actividad', nombre: 'Actividad', icono: 'reloj' },
+]
+
+/**
+ * Zona de administración independiente: su propio menú y sin la barra del entrenador.
+ * La interfaz solo se muestra a admins; cada operación la vuelve a comprobar el servidor.
+ */
+export function Admin({ seccion = 'resumen', jugadorId }: { seccion?: SeccionAdmin; jugadorId?: string }) {
+  const { esAdmin, equipos, equipoActivo, setEquipoActivo, cerrarSesion } = useApp()
   if (!esAdmin) return <SinPermiso />
   if (equipos.length === 0) {
     return (
-      <>
-        <Cabecera titulo="Administración" sub="Todavía no hay ningún equipo" />
+      <div className="admin-sin-menu">
+        <Cabecera titulo="Administración" sub="Empieza creando tu primer equipo" />
         <NuevoEquipo />
-      </>
+        <button className="btn ancho" onClick={cerrarSesion} style={{ marginTop: 16 }}>
+          <Icon n="salir" /> Cerrar sesión
+        </button>
+      </div>
     )
   }
   return (
-    <>
-      <Cabecera
-        titulo="Administración"
-        sub="Control de la plantilla y del cuerpo técnico"
-        accion={
-          equipos.length > 1 && (
-            <select className="selector-equipo" value={equipoActivo} onChange={(e) => setEquipoActivo(e.target.value)} aria-label="Equipo">
+    <div className="admin-marco">
+      <nav className="admin-menu" aria-label="Administración">
+        <span className="admin-menu-tit">Administración</span>
+        {MENU.map((m) => (
+          <a key={m.id} href={href({ nombre: 'admin', seccion: m.id })} aria-label={m.nombre} title={m.nombre} className={seccion === m.id ? 'on' : ''} aria-current={seccion === m.id ? 'page' : undefined}>
+            <Icon n={m.icono} size={20} />
+            <span>{m.nombre}</span>
+          </a>
+        ))}
+        <button type="button" className="admin-salir" onClick={cerrarSesion} aria-label="Cerrar sesión" title="Cerrar sesión">
+          <Icon n="salir" size={20} />
+          <span>Cerrar sesión</span>
+        </button>
+      </nav>
+      <div className="admin-contenido">
+        {equipos.length > 1 && !jugadorId && (
+          <label className="admin-equipo">
+            <span>Equipo</span>
+            <select value={equipoActivo} onChange={(e) => setEquipoActivo(e.target.value)}>
               {equipos.map((e) => (
                 <option key={e.id} value={e.id}>
                   {e.nombre} · {e.entidad}
                 </option>
               ))}
             </select>
-          )
-        }
-      />
-      <div className="segmentado admin-secciones" role="tablist" aria-label="Secciones de administración">
-        {(
-          [
-            ['jugadores', 'Jugadores'],
-            ['entrenadores', 'Entrenadores'],
-            ['actividad', 'Actividad'],
-          ] as const
-        ).map(([s, n]) => (
-          <button key={s} role="tab" aria-selected={seccion === s} className={seccion === s ? 'on' : ''} onClick={() => ir({ nombre: 'admin', seccion: s }, true)}>
-            {n}
-          </button>
-        ))}
+          </label>
+        )}
+        {jugadorId ? <AdminJugador id={jugadorId} /> : seccion === 'jugadores' ? <TablaJugadores /> : seccion === 'entrenadores' ? <Entrenadores /> : seccion === 'actividad' ? <Actividad /> : <Resumen />}
       </div>
-      {seccion === 'entrenadores' ? <Entrenadores /> : seccion === 'actividad' ? <Actividad /> : <TablaJugadores />}
+    </div>
+  )
+}
+
+const MOTIVO: Record<MotivoAtencion, { texto: string; clase: string }> = {
+  consentimiento: { texto: 'Falta consentimiento', clase: 'aviso' },
+  no_disponible: { texto: 'No disponible', clase: 'peligro' },
+  sin_evaluar: { texto: 'Sin evaluar', clase: 'neutro' },
+}
+
+function Motivos({ f }: { f: FilaAdmin }) {
+  return (
+    <span className="motivos">
+      {motivosAtencion(f).map((m) => (
+        <span key={m} className={`chip ${MOTIVO[m].clase}`}>
+          {MOTIVO[m].texto}
+        </span>
+      ))}
+    </span>
+  )
+}
+
+function useFilas() {
+  const { ds, resumen, externos, estadoDe } = useApp()
+  return useMemo(() => {
+    const hoy = new Date()
+    return ds.jugadores.filter((j) => !j.eliminadoEn).map((j) => filaAdmin(j, estadoDe(j.id), resumen.get(j.id), externos.get(j.id), hoy))
+  }, [ds.jugadores, resumen, externos, estadoDe])
+}
+
+/** Personas registradas que no están en ningún equipo (no ven nada hasta que un admin las añade). */
+function useEsperando() {
+  const { perfiles, miembrosTodos } = useApp()
+  return perfiles.filter((p) => p.role !== 'admin' && !miembrosTodos.some((m) => m.usuarioId === p.id))
+}
+
+// ───────────── Resumen (portada) ─────────────
+
+function Tarjeta({ to, valor, nombre, aviso }: { to: Ruta; valor: number; nombre: string; aviso?: boolean }) {
+  return (
+    <a href={href(to)} className={`admin-tarjeta ${aviso && valor > 0 ? 'aviso' : ''}`}>
+      <span className="admin-tarjeta-v num">{valor}</span>
+      <span className="admin-tarjeta-e">{nombre}</span>
+    </a>
+  )
+}
+
+function Resumen() {
+  const { ds } = useApp()
+  const filas = useFilas()
+  const esperando = useEsperando()
+  const [verTodos, setVerTodos] = useState(false)
+  const equipo = ds.equipos[0]
+  const activos = filas.filter((f) => !f.j.archivado)
+  const atencion = activos.filter((f) => motivosAtencion(f).length > 0)
+  const lista = verTodos ? atencion : atencion.slice(0, 5)
+
+  return (
+    <>
+      <Cabecera titulo="Resumen" sub={`${equipo.nombre} · ${equipo.entidad} · temporada ${equipo.temporada}`} />
+      <div className="admin-tarjetas">
+        <Tarjeta to={{ nombre: 'admin', seccion: 'jugadores' }} valor={activos.length} nombre="Jugadores activos" />
+        <Tarjeta to={{ nombre: 'admin', seccion: 'jugadores' }} valor={atencion.length} nombre="Necesitan atención" aviso />
+        <Tarjeta to={{ nombre: 'admin', seccion: 'entrenadores' }} valor={ds.miembros.length} nombre="Cuerpo técnico" />
+        <Tarjeta to={{ nombre: 'admin', seccion: 'entrenadores' }} valor={esperando.length} nombre="Esperan equipo" aviso />
+      </div>
+
+      <div className="admin-acciones">
+        <a className="btn primario" href={href({ nombre: 'admin-jugador', id: 'nuevo' })}>
+          <Icon n="mas" size={18} /> Dar de alta un jugador
+        </a>
+        {esperando.length > 0 && (
+          <a className="btn" href={href({ nombre: 'admin', seccion: 'entrenadores' })}>
+            <Icon n="familia" size={18} /> Aceptar entrenadores ({esperando.length})
+          </a>
+        )}
+      </div>
+
+      <section className="bloque">
+        <h2>Necesitan atención</h2>
+        {atencion.length === 0 ? (
+          <p className="ok con-icono">
+            <Icon n="check" size={18} /> Todo en orden: nadie necesita nada ahora mismo.
+          </p>
+        ) : (
+          <>
+            <ul className="filas">
+              {lista.map((f) => (
+                <li key={f.j.id}>
+                  <a href={href({ nombre: 'admin-jugador', id: f.j.id })} className="fila">
+                    <Avatar j={f.j} size={36} />
+                    <span className="num dorsal-mini">{f.j.dorsal}</span>
+                    <span className="crece">
+                      {f.j.nombre} {f.j.apellidos.split(' ')[0]}
+                    </span>
+                    <Motivos f={f} />
+                  </a>
+                </li>
+              ))}
+            </ul>
+            {atencion.length > 5 && (
+              <button className="enlace pequeno" onClick={() => setVerTodos((v) => !v)}>
+                {verTodos ? 'Ver menos' : `Ver los ${atencion.length}`}
+              </button>
+            )}
+          </>
+        )}
+      </section>
+
+      <ActividadReciente />
     </>
   )
 }
 
-// ───────────── Tabla de control ─────────────
+// ───────────── Jugadores ─────────────
 
-const COLUMNAS: { id: OrdenAdmin | null; nombre: string; num?: boolean }[] = [
+const COLUMNAS: { id: OrdenAdmin | null; nombre: string; num?: boolean; clase?: string }[] = [
   { id: 'dorsal', nombre: 'Nº', num: true },
   { id: 'nombre', nombre: 'Jugador' },
-  { id: null, nombre: 'Estado' },
-  { id: 'media', nombre: 'Media', num: true },
-  { id: 'asistencia', nombre: 'Asist.', num: true },
-  { id: 'minutos', nombre: 'Min.', num: true },
-  { id: 'ultima', nombre: 'Última eval.' },
-  { id: null, nombre: 'Consent.' },
+  { id: null, nombre: 'Estado', clase: 'col-estado' },
+  { id: 'media', nombre: 'Media', num: true, clase: 'col-media' },
+  { id: null, nombre: 'Avisos', clase: 'col-avisos' },
 ]
 
 function TablaJugadores() {
-  const { ds, resumen, externos, estadoDe } = useApp()
+  const filasTodas = useFilas()
   const [q, setQ] = useState('')
   const [filtro, setFiltro] = useState<FiltroAdmin>('activos')
   const [orden, setOrden] = useState<OrdenAdmin>('dorsal')
   const [asc, setAsc] = useState(true)
 
-  const todas = useMemo(() => {
-    const hoy = new Date()
-    return ds.jugadores.filter((j) => !j.eliminadoEn).map((j) => filaAdmin(j, estadoDe(j.id), resumen.get(j.id), externos.get(j.id), hoy))
-  }, [ds.jugadores, resumen, externos, estadoDe])
   const filas = ordenarFilas(
-    todas.filter((f) => cumpleFiltro(f, filtro) && coincideBusqueda(f.j, q)),
+    filasTodas.filter((f) => cumpleFiltro(f, filtro) && coincideBusqueda(f.j, q)),
     orden,
     asc,
   )
-  const cuenta = (f: FiltroAdmin) => todas.filter((x) => cumpleFiltro(x, f)).length
+  const cuenta = (f: FiltroAdmin) => filasTodas.filter((x) => cumpleFiltro(x, f)).length
 
   const ordenarPor = (o: OrdenAdmin) => {
     if (o === orden) setAsc((a) => !a)
@@ -142,51 +284,36 @@ function TablaJugadores() {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000)
   }
 
-  const KPIS: { f: FiltroAdmin; nombre: string }[] = [
-    { f: 'activos', nombre: 'Activos' },
-    { f: 'sin_consentimiento', nombre: 'Sin consentimiento' },
-    { f: 'no_disponibles', nombre: 'No disponibles' },
-    { f: 'sin_evaluar', nombre: `Sin evaluar ${DIAS_SIN_EVALUAR} d` },
-  ]
-
   return (
     <>
-      <div className="kpis admin-kpis">
-        {KPIS.map((k) => (
-          <button key={k.f} className={`kpi ${filtro === k.f ? 'on' : ''}`} onClick={() => setFiltro(k.f)} aria-pressed={filtro === k.f}>
-            <span className="kpi-v num">{cuenta(k.f)}</span>
-            <span className="kpi-e">{k.nombre}</span>
-          </button>
-        ))}
-      </div>
+      <Cabecera
+        titulo="Jugadores"
+        sub={`${cuenta('activos')} activos`}
+        accion={
+          <a className="btn primario" href={href({ nombre: 'admin-jugador', id: 'nuevo' })}>
+            <Icon n="mas" size={18} /> Alta
+          </a>
+        }
+      />
 
-      <div className="herramientas admin-herramientas">
-        <input className="buscar" type="search" placeholder="Buscar por nombre o dorsal" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar jugador" />
-        <button className="btn" onClick={exportar} disabled={filas.length === 0}>
-          <Icon n="descargar" size={18} /> <span className="ocultar-movil">Exportar</span> CSV
-        </button>
-        <a className="btn primario" href={href({ nombre: 'admin-jugador', id: 'nuevo' })}>
-          <Icon n="mas" size={18} /> Nuevo <span className="ocultar-movil">jugador</span>
-        </a>
-      </div>
-
-      <div className="filtros" role="radiogroup" aria-label="Filtrar">
+      <div className="segmentado admin-filtro" role="radiogroup" aria-label="Filtrar">
         {FILTROS_ADMIN.map((f) => (
-          <button key={f.id} role="radio" aria-checked={filtro === f.id} className={`filtro ${filtro === f.id ? 'on' : ''}`} onClick={() => setFiltro(f.id)}>
+          <button key={f.id} role="radio" aria-checked={filtro === f.id} className={filtro === f.id ? 'on' : ''} onClick={() => setFiltro(f.id)}>
             {f.nombre} <span className="filtro-n">{cuenta(f.id)}</span>
           </button>
         ))}
       </div>
+      <input className="buscar admin-buscar" type="search" placeholder="Buscar por nombre o dorsal" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar jugador" />
 
       {filas.length === 0 ? (
-        <Vacio>No hay jugadores con este filtro.</Vacio>
+        <Vacio>{filtro === 'atencion' ? 'Nadie necesita atención ahora mismo.' : 'No hay jugadores con este filtro.'}</Vacio>
       ) : (
         <div className="tabla-scroll">
           <table className="tabla-admin">
             <thead>
               <tr>
                 {COLUMNAS.map((c) => (
-                  <th key={c.nombre} className={c.num ? 'num' : ''} aria-sort={c.id && c.id === orden ? (asc ? 'ascending' : 'descending') : undefined}>
+                  <th key={c.nombre} className={`${c.num ? 'num' : ''} ${c.clase ?? ''}`} aria-sort={c.id && c.id === orden ? (asc ? 'ascending' : 'descending') : undefined}>
                     {c.id ? (
                       <button className="th-orden" onClick={() => ordenarPor(c.id!)}>
                         {c.nombre}
@@ -200,62 +327,44 @@ function TablaJugadores() {
               </tr>
             </thead>
             <tbody>
-              {filas.map((f) => {
-                const sinEvaluar = f.consentimiento && !f.j.archivado && (f.diasSinEvaluar == null || f.diasSinEvaluar >= DIAS_SIN_EVALUAR)
-                return (
-                  <tr key={f.j.id} className={f.j.archivado ? 'archivado' : ''} onClick={() => ir({ nombre: 'admin-jugador', id: f.j.id })}>
-                    <td className="num dorsal-celda">{f.j.dorsal}</td>
-                    <td>
-                      <a className="celda-jugador" href={href({ nombre: 'admin-jugador', id: f.j.id })} onClick={(e) => e.stopPropagation()}>
-                        <Avatar j={f.j} size={32} />
-                        <span>
-                          <strong>
-                            {f.j.nombre} {f.j.apellidos}
-                          </strong>
-                          <span className="sub">
-                            {f.j.posiciones?.[0] ? POSICION_NOMBRE[f.j.posiciones[0]] : '—'}
-                            {f.j.archivado && ' · archivado'}
-                          </span>
+              {filas.map((f) => (
+                <tr key={f.j.id} className={f.j.archivado ? 'archivado' : ''} onClick={() => ir({ nombre: 'admin-jugador', id: f.j.id })}>
+                  <td className="num dorsal-celda">{f.j.dorsal}</td>
+                  <td>
+                    <a className="celda-jugador" href={href({ nombre: 'admin-jugador', id: f.j.id })} onClick={(e) => e.stopPropagation()}>
+                      <Avatar j={f.j} size={32} />
+                      <span>
+                        <strong>
+                          {f.j.nombre} {f.j.apellidos}
+                        </strong>
+                        <span className="sub">
+                          {f.j.posiciones?.[0] ? POSICION_NOMBRE[f.j.posiciones[0]] : '—'}
+                          {f.j.archivado && ' · archivado'}
                         </span>
-                      </a>
-                    </td>
-                    <td>{f.estado ? <EstadoChip e={f.estado} /> : '—'}</td>
-                    <td className="num">
-                      <strong>{num1(f.r?.media)}</strong>
-                      {f.r?.media != null && (
-                        <>
-                          <br />
-                          <Tendencia v={f.r.tendencia} />
-                        </>
-                      )}
-                    </td>
-                    <td className="num">{pct(f.x?.asistenciaPct)}</td>
-                    <td className="num">{num0(f.x?.minutos)}</td>
-                    <td className={sinEvaluar ? 'alerta' : ''}>
-                      {f.r?.ultimaEvaluacion ? fechaCorta(f.r.ultimaEvaluacion) : '—'}
-                      {sinEvaluar && f.diasSinEvaluar != null && <span className="sub"> · hace {f.diasSinEvaluar} d</span>}
-                    </td>
-                    <td>
-                      {f.consentimiento ? (
-                        <span className="chip familia">
-                          <Icon n="check" size={13} /> Sí
-                        </span>
-                      ) : (
-                        <span className="chip aviso">
-                          <Icon n="aviso" size={13} /> Falta
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
+                      </span>
+                    </a>
+                  </td>
+                  <td className="col-estado">{f.estado ? <EstadoChip e={f.estado} /> : '—'}</td>
+                  <td className="num col-media">
+                    <strong>{num1(f.r?.media)}</strong>
+                  </td>
+                  <td className="col-avisos">
+                    <Motivos f={f} />
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       )}
-      <p className="nota-pie">
-        {filas.length} de {todas.length} jugadores. Toca una fila para editar. El CSV exporta lo que ves, con separador «;» para Excel.
-      </p>
+      <div className="admin-pie">
+        <span className="nota-pie">
+          {filas.length} de {filasTodas.length} jugadores · toca uno para editarlo
+        </span>
+        <button className="enlace pequeno" onClick={exportar} disabled={filas.length === 0}>
+          Exportar a Excel (CSV)
+        </button>
+      </div>
     </>
   )
 }
@@ -404,6 +513,12 @@ export function AdminJugador({ id }: { id: string }) {
     }
   }
 
+  const k0 = j.contactos?.find((k) => k.nombre || k.telefono)
+  const resumenContacto = k0 ? `${k0.nombre || k0.relacion}${k0.telefono ? ` · ${k0.telefono}` : ''}` : 'Sin contacto'
+  const resumenConsent = !c ? 'Pendiente: sin él solo se guardan nombre y dorsal' : c.retiradoEn ? `Retirado el ${fechaCorta(c.retiradoEn)}` : `Firmado${c.firmante ? ` por ${c.firmante}` : ''} · ${fechaCorta(c.fecha)}`
+  const resumenFicha = !fichaPermitida ? 'Necesita consentimiento' : [j.posiciones?.length ? j.posiciones.join(', ') : null, j.fechaNacimiento ? `nacido en ${j.fechaNacimiento.slice(0, 4)}` : null, j.pierna ? `pierna ${j.pierna}` : null].filter(Boolean).join(' · ') || 'Sin completar'
+  const resumenEstado = `${ESTADO_INFO[est.tipo].nombre}${est.tipo !== 'disponible' && est.vueltaPrevista ? ` · vuelve el ${fechaCorta(est.vueltaPrevista)}` : ''}`
+
   const archivar = async (valor: boolean) => {
     if (!original) return
     if (!valor) {
@@ -428,8 +543,8 @@ export function AdminJugador({ id }: { id: string }) {
       />
 
       <div className="form">
-        <fieldset className="grupo">
-          <legend>Datos básicos</legend>
+        <Seccion titulo="Datos básicos" resumen={j.nombre ? `${j.nombre} ${j.apellidos} · dorsal ${Number.isNaN(j.dorsal) ? '—' : j.dorsal}` : 'Nombre, apellidos y dorsal'} abierta>
+        <fieldset className="grupo plano">
           <div className="fila-campos">
             <Campo etiqueta="Nombre" error={err.nombre}>
               <input value={j.nombre} onChange={(e) => set('nombre', e.target.value)} autoComplete="off" />
@@ -443,9 +558,10 @@ export function AdminJugador({ id }: { id: string }) {
           </Campo>
           <p className="campo-ayuda">Nombre, dorsal y el contacto de la familia se pueden guardar siempre. El resto necesita el consentimiento.</p>
         </fieldset>
+        </Seccion>
 
-        <fieldset className="grupo">
-          <legend>Contacto de la familia</legend>
+        <Seccion titulo="Contacto de la familia" resumen={resumenContacto} abierta={nuevo}>
+        <fieldset className="grupo plano">
           {(j.contactos ?? []).map((k, i) => (
             <div key={i} className="contacto">
               <div className="fila-campos ancha">
@@ -479,9 +595,10 @@ export function AdminJugador({ id }: { id: string }) {
             <Icon n="mas" size={18} /> Añadir otro contacto
           </button>
         </fieldset>
+        </Seccion>
 
-        <fieldset className="grupo">
-          <legend>Consentimiento RGPD</legend>
+        <Seccion titulo="Consentimiento" resumen={resumenConsent} aviso={!fichaPermitida} abierta={nuevo || !!errConsent}>
+        <fieldset className="grupo plano">
           {!c ? (
             <>
               <p className="aviso-permiso">Sin consentimiento solo se guardan el nombre, el dorsal y el contacto de la familia. No se puede evaluar ni guardar la ficha.</p>
@@ -553,9 +670,10 @@ export function AdminJugador({ id }: { id: string }) {
             </>
           )}
         </fieldset>
+        </Seccion>
 
-        <fieldset className="grupo" disabled={!fichaPermitida}>
-          <legend>Ficha deportiva</legend>
+        <Seccion titulo="Ficha deportiva" resumen={resumenFicha}>
+        <fieldset className="grupo plano" disabled={!fichaPermitida}>
           {!fichaPermitida && <p className="aviso-permiso">Necesita el consentimiento de ficha para guardar estos datos.</p>}
           <Campo etiqueta="Fecha de nacimiento">
             <input type="date" value={j.fechaNacimiento ?? ''} max={hoyISO()} onChange={(e) => set('fechaNacimiento', e.target.value || null)} />
@@ -585,9 +703,10 @@ export function AdminJugador({ id }: { id: string }) {
             </div>
           </div>
         </fieldset>
+        </Seccion>
 
-        <fieldset className="grupo">
-          <legend>Disponibilidad</legend>
+        <Seccion titulo="Disponibilidad" resumen={resumenEstado} aviso={est.tipo !== 'disponible'}>
+        <fieldset className="grupo plano">
           <div className="segmentado pequeno estados-sel" role="radiogroup" aria-label="Estado">
             {TIPOS_ESTADO.map((t) => (
               <button type="button" key={t} role="radio" aria-checked={est.tipo === t} className={est.tipo === t ? 'on' : ''} onClick={() => setEstado({ tipo: t, desde: t === est.tipo ? est.desde : hoyISO() })}>
@@ -611,6 +730,7 @@ export function AdminJugador({ id }: { id: string }) {
             </Campo>
           )}
         </fieldset>
+        </Seccion>
       </div>
 
       <div className="barra-accion">
@@ -692,13 +812,7 @@ const PERMISOS: [keyof MiembroEquipo['permisos'], string][] = [
   ['verNotasPrivadas', 'Ver notas privadas'],
 ]
 
-/** Permisos con los que entra cada rol al añadirlo (luego se ajustan uno a uno). */
-const PERMISOS_POR_ROL: Record<Rol, MiembroEquipo['permisos']> = {
-  entrenador_principal: { verFicha: true, verNotasPrivadas: true, evaluar: true },
-  ayudante: { verFicha: true, verNotasPrivadas: false, evaluar: true },
-  preparador_fisico: { verFicha: true, verNotasPrivadas: false, evaluar: false },
-  coordinador: { verFicha: true, verNotasPrivadas: false, evaluar: false },
-}
+const PUESTOS: Rol[] = ['ayudante', 'preparador_fisico', 'coordinador']
 
 function useMensaje() {
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null)
@@ -711,279 +825,364 @@ function useMensaje() {
     }
   }
   const nodo = msg && (
-    <p className={msg.ok ? 'ok' : 'error'} role="status">
+    <p className={`aviso-flotante ${msg.ok ? 'ok' : 'error'}`} role="status">
       {msg.t}
     </p>
   )
   return { hecho, nodo }
 }
 
-function FotoPerfil({ c }: { c?: Cuenta; nombre: string }) {
-  const nombre = c?.nombre ?? '?'
+function FotoPerfil({ c, nombre, size = 40 }: { c?: Cuenta; nombre: string; size?: number }) {
   return c?.foto ? (
-    <img src={c.foto} alt="" className="avatar" width={44} height={44} />
+    <img src={c.foto} alt="" className="avatar redondo" width={size} height={size} />
   ) : (
-    <span className="avatar ini" style={{ width: 44, height: 44, fontSize: 17 }} aria-hidden>
+    <span className="avatar ini redondo" style={{ width: size, height: size, fontSize: size * 0.4 }} aria-hidden>
       {iniciales(nombre, nombre.split(' ')[1] ?? '')}
     </span>
   )
 }
 
-function CasillaAdmin({ c, nombre, hecho }: { c: Cuenta; nombre: string; hecho: (p: Promise<void>, t?: string) => Promise<void> }) {
-  const { perfiles, cambiarAdmin } = useApp()
-  const esAdmin = c.role === 'admin'
-  const bloqueado = esAdmin && !quedaAlgunAdmin(perfiles, c.id, false)
+function SelectorAcceso({ valor, onCambio, etiqueta }: { valor: TipoAcceso; onCambio: (t: Exclude<TipoAcceso, 'personalizado'>) => void; etiqueta: string }) {
   return (
-    <label className="check" title={bloqueado ? 'Tiene que quedar al menos un administrador' : undefined}>
-      <input
-        type="checkbox"
-        checked={esAdmin}
-        disabled={bloqueado}
-        onChange={(e) => hecho(cambiarAdmin(c.id, e.target.checked), e.target.checked ? `${nombre} ya es administrador.` : `${nombre} ya no es administrador.`)}
-      />{' '}
-      Administrador
-    </label>
+    <select className="selector-acceso" value={valor} onChange={(e) => onCambio(e.target.value as Exclude<TipoAcceso, 'personalizado'>)} aria-label={etiqueta}>
+      {TIPOS_ACCESO.map((t) => (
+        <option key={t.id} value={t.id}>
+          {t.nombre}
+        </option>
+      ))}
+      {valor === 'personalizado' && (
+        <option value="personalizado" disabled>
+          Personalizado
+        </option>
+      )}
+    </select>
   )
 }
 
 function Entrenadores() {
-  const { ds, perfiles, cuenta: yo, guardarMiembro, quitarMiembro } = useApp()
+  const { ds, perfiles, cuenta: yo, guardarMiembro, quitarMiembro, cambiarAdmin } = useApp()
   const { hecho, nodo } = useMensaje()
+  const esperando = useEsperando()
+  const [accesoNuevo, setAccesoNuevo] = useState<Record<string, Exclude<TipoAcceso, 'personalizado'>>>({})
   const [quitar, setQuitar] = useState<string | null>(null)
-  const [rolNuevo, setRolNuevo] = useState<Record<string, Rol>>({})
   const equipo = ds.equipos[0]
   const perfil = (id: string) => perfiles.find((p) => p.id === id)
   const nombreDe = (id: string) => perfil(id)?.nombre || ds.usuarios.find((u) => u.id === id)?.nombre || 'Sin nombre'
   const miembros = [...ds.miembros].sort((a, b) => ROLES.indexOf(a.rol) - ROLES.indexOf(b.rol) || nombreDe(a.usuarioId).localeCompare(nombreDe(b.usuarioId)))
-  const fuera = perfiles.filter((p) => !miembros.some((m) => m.usuarioId === p.id)).sort((a, b) => a.nombre.localeCompare(b.nombre))
+  const otras = perfiles.filter((p) => !miembros.some((m) => m.usuarioId === p.id) && !esperando.some((e) => e.id === p.id))
+
+  const anadir = (c: Cuenta) => {
+    const t = accesoNuevo[c.id] ?? 'ayudante'
+    return hecho(guardarMiembro(conAcceso({ equipoId: equipo.id, usuarioId: c.id, rol: 'ayudante', permisos: { verFicha: false, verNotasPrivadas: false, evaluar: false } }, t)), `${c.nombre || c.usuario} ya está en ${equipo.nombre}.`)
+  }
+  const FilaCuenta = ({ c }: { c: Cuenta }) => (
+    <li className="fila fila-cuenta">
+      <FotoPerfil c={c} nombre={c.nombre} />
+      <span className="crece">
+        <strong>{c.nombre || c.usuario}</strong>
+        <span className="sub">
+          {c.email}
+          {c.entidad && ` · dice entrenar en ${c.entidad}${c.equipo ? ` (${c.equipo})` : ''}`}
+        </span>
+      </span>
+      <SelectorAcceso valor={accesoNuevo[c.id] ?? 'ayudante'} onCambio={(t) => setAccesoNuevo((x) => ({ ...x, [c.id]: t }))} etiqueta={`Acceso para ${c.nombre}`} />
+      <button className="btn primario" onClick={() => anadir(c)}>
+        Añadir
+      </button>
+    </li>
+  )
 
   return (
     <>
-      <p className="sub admin-intro">
-        {miembros.length} personas en {equipo.nombre}. El entrenador principal siempre puede todo; al resto le das solo lo que necesite. Los cambios se guardan al momento y el servidor los vuelve a comprobar.
-      </p>
+      <Cabecera titulo="Entrenadores" sub={`${miembros.length} en ${equipo.nombre}`} />
       {nodo}
-      <ul className="miembros">
-        {miembros.map((m) => {
-          const c = perfil(m.usuarioId)
-          const principal = m.rol === 'entrenador_principal'
-          const nombre = nombreDe(m.usuarioId)
-          return (
-            <li key={m.usuarioId} className="miembro">
-              <div className="miembro-cab">
-                <FotoPerfil c={c} nombre={nombre} />
-                <div className="crece">
-                  <strong>{nombre}</strong>
-                  <span className="sub">{c ? `@${c.usuario} · ${c.email}` : 'Usuario sin perfil visible'}</span>
-                  <span className="miembro-chips">
-                    {c?.id === yo.id && <span className="chip">Tú</span>}
-                    {c?.role === 'admin' && (
-                      <span className="chip admin">
-                        <Icon n="escudo" size={13} /> Admin
-                      </span>
-                    )}
-                  </span>
-                </div>
-              </div>
-              <div className="miembro-controles">
-                <Campo etiqueta="Rol en el equipo">
-                  <select value={m.rol} onChange={(e) => hecho(guardarMiembro({ ...m, rol: e.target.value as Rol }), `${nombre}: ahora es ${ROL_NOMBRE[e.target.value as Rol].toLowerCase()}.`)}>
-                    {ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {ROL_NOMBRE[r]}
-                      </option>
-                    ))}
-                  </select>
-                </Campo>
-                <div className="checks-fila" role="group" aria-label={`Permisos de ${nombre}`}>
-                  {PERMISOS.map(([k, n]) => (
-                    <label key={k} className="check">
-                      <input type="checkbox" checked={principal || m.permisos[k]} disabled={principal} onChange={(e) => hecho(guardarMiembro({ ...m, permisos: { ...m.permisos, [k]: e.target.checked } }))} /> {n}
-                    </label>
-                  ))}
-                  {c && <CasillaAdmin c={c} nombre={nombre} hecho={hecho} />}
-                </div>
-                {principal && <p className="campo-ayuda">Como entrenador principal tiene todos los permisos.</p>}
-                {quitar === m.usuarioId ? (
-                  <div className="botones">
-                    <button className="btn" onClick={() => setQuitar(null)}>
-                      Cancelar
-                    </button>
-                    <button className="btn peligro" onClick={() => hecho(quitarMiembro(m.equipoId, m.usuarioId), `${nombre} ya no está en ${equipo.nombre}.`).then(() => setQuitar(null))}>
-                      Sí, quitar del equipo
-                    </button>
-                  </div>
-                ) : (
-                  <button className="enlace pequeno" onClick={() => setQuitar(m.usuarioId)}>
-                    Quitar del equipo
-                  </button>
-                )}
-              </div>
-            </li>
-          )
-        })}
-      </ul>
 
-      <section className="bloque">
-        <h2>Cuentas que no están en este equipo</h2>
-        {fuera.length === 0 ? (
-          <p className="sub">Todas las cuentas registradas están ya en {equipo.nombre}.</p>
-        ) : (
+      {esperando.length > 0 && (
+        <section className="bloque destacado">
+          <h2>Esperan equipo · {esperando.length}</h2>
+          <p className="sub">Se han registrado y aún no ven nada. Elige su acceso y añádelos a {equipo.nombre}.</p>
           <ul className="filas">
-            {fuera.map((c) => (
-              <li key={c.id}>
-                <div className="fila fila-cuenta">
-                  <FotoPerfil c={c} nombre={c.nombre} />
-                  <span className="crece">
-                    <strong>{c.nombre || c.usuario}</strong>
-                    <span className="sub">
-                      {' '}
-                      · {c.email}
-                      {c.entidad && ` · dice entrenar en ${c.entidad} (${c.equipo})`}
-                    </span>
-                  </span>
-                  <select value={rolNuevo[c.id] ?? 'ayudante'} onChange={(e) => setRolNuevo((x) => ({ ...x, [c.id]: e.target.value as Rol }))} aria-label={`Rol para ${c.nombre}`}>
-                    {ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {ROL_NOMBRE[r]}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    className="btn"
-                    onClick={() => {
-                      const rol = rolNuevo[c.id] ?? 'ayudante'
-                      return hecho(guardarMiembro({ equipoId: equipo.id, usuarioId: c.id, rol, permisos: PERMISOS_POR_ROL[rol] }), `${c.nombre} añadido a ${equipo.nombre}.`)
-                    }}
-                  >
-                    Añadir
-                  </button>
-                  <CasillaAdmin c={c} nombre={c.nombre} hecho={hecho} />
-                </div>
-              </li>
+            {esperando.map((c) => (
+              <FilaCuenta key={c.id} c={c} />
             ))}
           </ul>
-        )}
-        <p className="nota-pie">Quien se registra entra como usuario normal y sin equipo: no ve ningún dato hasta que un administrador lo añade aquí.</p>
-      </section>
-
-      <NuevoEquipo />
+        </section>
+      )}
 
       <section className="bloque">
-        <h2>Cómo funciona</h2>
-        <ul className="lista-texto">
-          <li>Los permisos y el rol de administrador se guardan y se comprueban en el servidor, no en este dispositivo.</li>
-          <li>Siempre tiene que quedar al menos un administrador.</li>
-          <li>Para probar los permisos del ayudante, en Mi perfil elige «Ver la app como ayudante» (solo cambia lo que ves).</li>
-          <li>Todo cambio de jugadores, equipos, miembros y roles queda en la pestaña Actividad.</li>
+        <h2>Cuerpo técnico de {equipo.nombre}</h2>
+        <ul className="miembros-lista">
+          {miembros.map((m) => {
+            const c = perfil(m.usuarioId)
+            const nombre = nombreDe(m.usuarioId)
+            const acceso = tipoAcceso(m)
+            const principal = m.rol === 'entrenador_principal'
+            const bloqueaAdmin = c?.role === 'admin' && !quedaAlgunAdmin(perfiles, c.id, false)
+            return (
+              <li key={m.usuarioId} className="miembro-fila">
+                <div className="miembro-linea">
+                  <FotoPerfil c={c} nombre={nombre} />
+                  <span className="crece">
+                    <strong>{nombre}</strong>
+                    <span className="miembro-chips">
+                      {c?.id === yo.id && <span className="chip">Tú</span>}
+                      {c?.role === 'admin' && (
+                        <span className="chip admin">
+                          <Icon n="escudo" size={13} /> Admin
+                        </span>
+                      )}
+                      <span className="sub">{acceso === 'personalizado' ? 'Acceso personalizado' : TIPOS_ACCESO.find((t) => t.id === acceso)!.descripcion}</span>
+                    </span>
+                  </span>
+                  <SelectorAcceso valor={acceso} onCambio={(t) => hecho(guardarMiembro(conAcceso(m, t)), `${nombre}: ${TIPOS_ACCESO.find((x) => x.id === t)!.nombre.toLowerCase()}.`)} etiqueta={`Acceso de ${nombre}`} />
+                </div>
+                <details className="mas-opciones">
+                  <summary>Más opciones</summary>
+                  <div className="mas-opciones-cuerpo">
+                    {!principal && (
+                      <Campo etiqueta="Puesto">
+                        <select value={m.rol} onChange={(e) => hecho(guardarMiembro({ ...m, rol: e.target.value as Rol }))}>
+                          {PUESTOS.map((r) => (
+                            <option key={r} value={r}>
+                              {ROL_NOMBRE[r]}
+                            </option>
+                          ))}
+                        </select>
+                      </Campo>
+                    )}
+                    <div className="checks-fila" role="group" aria-label={`Permisos de ${nombre}`}>
+                      {PERMISOS.map(([k, n]) => (
+                        <label key={k} className="check">
+                          <input type="checkbox" checked={principal || m.permisos[k]} disabled={principal} onChange={(e) => hecho(guardarMiembro({ ...m, permisos: { ...m.permisos, [k]: e.target.checked } }))} /> {n}
+                        </label>
+                      ))}
+                      {c && (
+                        <label className="check" title={bloqueaAdmin ? 'Tiene que quedar al menos un administrador' : undefined}>
+                          <input type="checkbox" checked={c.role === 'admin'} disabled={bloqueaAdmin} onChange={(e) => hecho(cambiarAdmin(c.id, e.target.checked), e.target.checked ? `${nombre} ya es administrador.` : `${nombre} ya no es administrador.`)} /> Administrador del club
+                        </label>
+                      )}
+                    </div>
+                    {quitar === m.usuarioId ? (
+                      <div className="confirmar">
+                        <p>
+                          ¿Quitar a <strong>{nombre}</strong> de {equipo.nombre}? Dejará de ver a sus jugadores. Su cuenta no se borra.
+                        </p>
+                        <div className="botones">
+                          <button className="btn" onClick={() => setQuitar(null)}>
+                            Cancelar
+                          </button>
+                          <button className="btn peligro" onClick={() => hecho(quitarMiembro(m.equipoId, m.usuarioId), `${nombre} ya no está en ${equipo.nombre}.`).then(() => setQuitar(null))}>
+                            Sí, quitar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button className="enlace pequeno peligro-txt" onClick={() => setQuitar(m.usuarioId)}>
+                        Quitar del equipo
+                      </button>
+                    )}
+                  </div>
+                </details>
+              </li>
+            )
+          })}
         </ul>
       </section>
+
+      {otras.length > 0 && (
+        <details className="bloque plegable">
+          <summary>
+            <h2>Añadir a alguien de otro equipo · {otras.length}</h2>
+          </summary>
+          <ul className="filas">
+            {otras.map((c) => (
+              <FilaCuenta key={c.id} c={c} />
+            ))}
+          </ul>
+        </details>
+      )}
+
+      <details className="bloque plegable">
+        <summary>
+          <h2>Crear otro equipo</h2>
+        </summary>
+        <NuevoEquipo sinTitulo />
+      </details>
     </>
   )
 }
 
 /** Alta de un equipo (también la usa el primer admin, cuando aún no hay ninguno). */
-export function NuevoEquipo() {
+export function NuevoEquipo({ sinTitulo }: { sinTitulo?: boolean }) {
   const { crearEquipo, cargarEjemplo, usuarioId } = useApp()
   const { hecho, nodo } = useMensaje()
   const [d, setD] = useState({ entidad: '', categoria: '', equipo: 'A', genero: 'masculino' as Genero })
   const [err, setErr] = useState<Errores>({})
+  const contenido = (
+    <form
+      className="form"
+      onSubmit={async (e) => {
+        e.preventDefault()
+        const v: Errores = {}
+        if (d.entidad.trim().length < 2) v.entidad = 'Escribe el club o la escuela.'
+        if (!d.categoria) v.categoria = 'Elige una categoría.'
+        if (!d.equipo.trim()) v.equipo = 'Indica el equipo (A, B…).'
+        setErr(v)
+        if (Object.values(v).some(Boolean)) return
+        const cat = categoria(d.categoria)
+        const ahora = new Date()
+        const y = ahora.getMonth() >= 6 ? ahora.getFullYear() : ahora.getFullYear() - 1
+        const iso = ahora.toISOString()
+        await hecho(
+          crearEquipo({
+            id: `eq-${uid()}`,
+            creadoEn: iso,
+            actualizadoEn: iso,
+            creadoPor: usuarioId,
+            clubId: 'club',
+            entidad: d.entidad.trim(),
+            genero: d.genero,
+            nombre: `${cat.nombre} ${d.equipo.trim()}`,
+            categoria: cat.nombre,
+            temporada: `${y}-${String((y + 1) % 100).padStart(2, '0')}`,
+            modalidad: cat.modalidad,
+            edadMin: cat.edadMin,
+            edadMax: cat.edadMax,
+          }),
+          'Equipo creado. Ahora añade a su cuerpo técnico y a sus jugadores.',
+        )
+      }}
+    >
+      <CamposEquipo d={d} err={err} set={(k, v) => setD((x) => ({ ...x, [k]: v }))} />
+      <div className="botones">
+        <button className="btn primario" type="submit">
+          Crear equipo
+        </button>
+        <button type="button" className="btn" onClick={() => hecho(cargarEjemplo(), 'Plantilla de ejemplo cargada en un equipo nuevo.')}>
+          O probar con una plantilla de ejemplo
+        </button>
+      </div>
+      {nodo}
+    </form>
+  )
+  if (sinTitulo) return contenido
   return (
     <section className="bloque">
       <h2>Nuevo equipo</h2>
-      <form
-        className="form"
-        onSubmit={async (e) => {
-          e.preventDefault()
-          const v: Errores = {}
-          if (d.entidad.trim().length < 2) v.entidad = 'Escribe el club o la escuela.'
-          if (!d.categoria) v.categoria = 'Elige una categoría.'
-          if (!d.equipo.trim()) v.equipo = 'Indica el equipo (A, B…).'
-          setErr(v)
-          if (Object.values(v).some(Boolean)) return
-          const cat = categoria(d.categoria)
-          const ahora = new Date()
-          const y = ahora.getMonth() >= 6 ? ahora.getFullYear() : ahora.getFullYear() - 1
-          const iso = ahora.toISOString()
-          await hecho(
-            crearEquipo({
-              id: `eq-${uid()}`,
-              creadoEn: iso,
-              actualizadoEn: iso,
-              creadoPor: usuarioId,
-              clubId: 'club',
-              entidad: d.entidad.trim(),
-              genero: d.genero,
-              nombre: `${cat.nombre} ${d.equipo.trim()}`,
-              categoria: cat.nombre,
-              temporada: `${y}-${String((y + 1) % 100).padStart(2, '0')}`,
-              modalidad: cat.modalidad,
-              edadMin: cat.edadMin,
-              edadMax: cat.edadMax,
-            }),
-            'Equipo creado. Ahora añade a su cuerpo técnico y a sus jugadores.',
-          )
-        }}
-      >
-        <CamposEquipo d={d} err={err} set={(k, v) => setD((x) => ({ ...x, [k]: v }))} />
-        <div className="botones">
-          <button className="btn primario" type="submit">
-            Crear equipo
-          </button>
-          <button type="button" className="btn" onClick={() => hecho(cargarEjemplo(), 'Plantilla de ejemplo cargada en un equipo nuevo.')}>
-            O cargar una plantilla de ejemplo
-          </button>
-        </div>
-        {nodo}
-      </form>
+      {contenido}
     </section>
   )
 }
 
 // ═════════════════════════ Registro de actividad ═════════════════════════
 
-const ACCION: Record<string, string> = { INSERT: 'creó', UPDATE: 'modificó', DELETE: 'borró', CAMBIO_ROL: 'cambió el rol de' }
-const TABLA: Record<string, string> = { jugadores: 'jugador', estados: 'estado', equipos: 'equipo', miembros: 'miembro del equipo', items: 'ítem', profiles: 'cuenta' }
+function useNombresRegistro() {
+  const { ds, perfiles, equipos } = useApp()
+  return useMemo(
+    () => ({
+      jugador: (id: string) => {
+        const j = ds.jugadores.find((x) => x.id === id)
+        return j ? `${j.nombre} ${j.apellidos.split(' ')[0]}` : undefined
+      },
+      jugadorDeEstado: (id: string) => ds.estados.find((e) => e.id === id)?.jugadorId ?? (id.startsWith('st-') ? id.slice(3) : undefined),
+      persona: (id: string) => {
+        const p = perfiles.find((x) => x.id === id)
+        return p ? p.nombre || p.usuario : undefined
+      },
+      equipo: (id: string) => equipos.find((e) => e.id === id)?.nombre,
+    }),
+    [ds, perfiles, equipos],
+  )
+}
 
-function Actividad() {
-  const { perfiles } = useApp()
+function useActividad(limite: number) {
   const [filas, setFilas] = useState<R.EntradaActividad[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
-    R.leerActividad(100)
+    R.leerActividad(limite)
       .then(setFilas)
       .catch((e: Error) => setError(e.message))
-  }, [])
-  const quien = (id: string | null) => (id ? (perfiles.find((p) => p.id === id)?.nombre ?? 'Cuenta borrada') : 'Proceso del servidor')
-  const resumen = (x: R.EntradaActividad) => {
-    if (!x.cambios) return ''
-    if (x.accion === 'CAMBIO_ROL') {
-      const r = x.cambios.role as { antes: string; despues: string }
-      return `${r.antes} → ${r.despues}`
-    }
-    if (x.accion === 'UPDATE') return `Campos: ${Object.keys(x.cambios).join(', ')}`
-    return Object.values(x.cambios).filter((v) => typeof v === 'string' || typeof v === 'number').join(' ')
-  }
+  }, [limite])
+  return { filas, error }
+}
+
+function FraseActividad({ x, conFecha }: { x: R.EntradaActividad; conFecha?: boolean }) {
+  const { perfiles } = useApp()
+  const nombres = useNombresRegistro()
+  const quien = x.actor ? (perfiles.find((p) => p.id === x.actor)?.nombre ?? 'Una cuenta borrada') : 'El servidor'
+  const d = describirRegistro(x, nombres)
+  const f = new Date(x.creado_en)
+  return (
+    <li className="actividad-fila">
+      <span className={`actividad-punto ${d.tipo}`} aria-hidden />
+      <span className="crece">
+        <strong>{quien}</strong> {d.texto}
+      </span>
+      <span className="actividad-hora">{conFecha ? f.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) + ' · ' : ''}{f.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>
+    </li>
+  )
+}
+
+function ActividadReciente() {
+  const { filas, error } = useActividad(5)
+  if (error || !filas || filas.length === 0) return null
+  return (
+    <section className="bloque">
+      <h2>Últimos cambios</h2>
+      <ul className="actividad">
+        {filas.map((x) => (
+          <FraseActividad key={x.id} x={x} conFecha />
+        ))}
+      </ul>
+      <a className="enlace pequeno" href={href({ nombre: 'admin', seccion: 'actividad' })}>
+        Ver toda la actividad
+      </a>
+    </section>
+  )
+}
+
+const FILTROS_ACTIVIDAD: { id: TipoRegistro | 'todo'; nombre: string }[] = [
+  { id: 'todo', nombre: 'Todo' },
+  { id: 'jugadores', nombre: 'Jugadores' },
+  { id: 'equipo', nombre: 'Equipos y accesos' },
+  { id: 'roles', nombre: 'Administradores' },
+]
+
+function Actividad() {
+  const { filas, error } = useActividad(200)
+  const nombres = useNombresRegistro()
+  const [filtro, setFiltro] = useState<TipoRegistro | 'todo'>('todo')
   if (error) return <p className="error">{error}</p>
   if (!filas) return <Vacio>Cargando…</Vacio>
+  const visibles = filas.filter((x) => filtro === 'todo' || describirRegistro(x, nombres).tipo === filtro)
+  const dias = new Map<string, R.EntradaActividad[]>()
+  for (const x of visibles) {
+    const d = new Date(x.creado_en).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
+    dias.set(d, [...(dias.get(d) ?? []), x])
+  }
   return (
     <>
-      <p className="sub admin-intro">Últimas 100 acciones sobre jugadores, estados, equipos, miembros y roles. Lo guarda el servidor y nadie puede editarlo ni borrarlo desde la app.</p>
-      {filas.length === 0 ? (
-        <Vacio>Todavía no hay actividad.</Vacio>
+      <Cabecera titulo="Actividad" sub="Quién cambió qué. Lo guarda el servidor y nadie puede editarlo ni borrarlo." />
+      <div className="filtros" role="radiogroup" aria-label="Filtrar actividad">
+        {FILTROS_ACTIVIDAD.map((f) => (
+          <button key={f.id} role="radio" aria-checked={filtro === f.id} className={`filtro ${filtro === f.id ? 'on' : ''}`} onClick={() => setFiltro(f.id)}>
+            {f.nombre}
+          </button>
+        ))}
+      </div>
+      {visibles.length === 0 ? (
+        <Vacio>Todavía no hay actividad de este tipo.</Vacio>
       ) : (
-        <ul className="actividad">
-          {filas.map((x) => (
-            <li key={x.id}>
-              <span className="actividad-fecha">{new Date(x.creado_en).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-              <span>
-                <strong>{quien(x.actor)}</strong> {x.actor_es_admin && <span className="chip admin">Admin</span>} {ACCION[x.accion] ?? x.accion} {TABLA[x.tabla] ?? x.tabla}{' '}
-                <code>{x.tabla === 'profiles' ? quien(x.registro_id) : x.registro_id}</code>
-                {resumen(x) && <span className="sub"> · {resumen(x)}</span>}
-              </span>
-            </li>
-          ))}
-        </ul>
+        [...dias].map(([dia, xs]) => (
+          <section key={dia} className="bloque">
+            <h2>{dia}</h2>
+            <ul className="actividad">
+              {xs.map((x) => (
+                <FraseActividad key={x.id} x={x} />
+              ))}
+            </ul>
+          </section>
+        ))
       )}
     </>
   )

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { useApp } from '../state/store'
-import { href } from '../state/router'
 import { Cabecera } from '../ui/components'
 import { Icon } from '../ui/Icon'
 import { Campo, CamposEquipo } from './Acceso'
@@ -35,12 +34,12 @@ const normal = (x: Editable) =>
   })
 
 export function Perfil() {
-  const { cuenta, guardarPerfil, cerrarSesion, tema, setTema, verComo, setVerComo, cargarEjemplo, esAdmin, equipos, equipoActivo, setEquipoActivo } = useApp()
+  // El panel de entrenador no tiene accesos de administración: eso está en su propio panel (con PIN).
+  const { cuenta, guardarPerfil, cerrarSesion, tema, setTema, verComo, setVerComo, equipos, equipoActivo, setEquipoActivo } = useApp()
   const [d, setD] = useState<Editable>(() => editable(cuenta))
   const [err, setErr] = useState<Errores>({})
   const [estado, setEstado] = useState<'' | 'guardando' | 'guardado' | 'email'>('')
   const [errFoto, setErrFoto] = useState<string | null>(null)
-  const [ejemplo, setEjemplo] = useState<'' | 'cargando' | 'hecho' | string>('')
   const temporizador = useRef<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -168,18 +167,6 @@ export function Perfil() {
         </section>
       )}
 
-      {esAdmin && (
-        <section className="bloque">
-          <h2>Administración</h2>
-          <p className="sub">Eres administrador: das de alta jugadores, controlas su estado y consentimiento, y gestionas los permisos del cuerpo técnico.</p>
-          <div className="botones">
-            <a className="btn primario" href={href({ nombre: 'admin' })}>
-              <Icon n="escudo" size={18} /> Abrir el panel de admin
-            </a>
-          </div>
-        </section>
-      )}
-
       <section className="bloque">
         <h2>Apariencia</h2>
         <div className="segmentado" role="radiogroup" aria-label="Tema">
@@ -219,34 +206,6 @@ export function Perfil() {
         </ul>
       </section>
 
-      {esAdmin && (
-        <section className="bloque">
-          <h2>Datos de ejemplo</h2>
-          <p className="sub">Crea (o sustituye) un equipo de ejemplo con una plantilla ficticia para probar la app. No toca los equipos reales.</p>
-          <div className="botones">
-            <button
-              className="btn"
-              disabled={ejemplo === 'cargando'}
-              onClick={async () => {
-                setEjemplo('cargando')
-                try {
-                  await cargarEjemplo()
-                  setEjemplo('hecho')
-                } catch (e) {
-                  setEjemplo((e as Error).message)
-                }
-              }}
-            >
-              {ejemplo === 'cargando' ? 'Cargando…' : ejemplo === 'hecho' ? 'Plantilla de ejemplo cargada' : 'Cargar plantilla de ejemplo'}
-            </button>
-          </div>
-          {ejemplo && !['cargando', 'hecho'].includes(ejemplo) && (
-            <p className="error" role="alert">
-              {ejemplo}
-            </p>
-          )}
-        </section>
-      )}
 
       <button className="btn peligro ancho" onClick={cerrarSesion}>
         <Icon n="salir" /> Cerrar sesión
