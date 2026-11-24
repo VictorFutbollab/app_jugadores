@@ -1,0 +1,1079 @@
+/* ═════════════════════════════════════════════════════════════════════
+   FUTBOLLAB · SISTEMA DE DISEÑO "VESTUARIO"  (FLAGS.disenoV2)
+
+   Todo cuelga de html[data-estilo='v2']. Con el interruptor apagado la
+   app vuelve al diseño anterior sin tocar nada más.
+
+   Principios
+   · El dorsal es la identidad: camisetas con número, nunca iniciales.
+   · Los números mandan: grandes, en Bricolage, con cifras tabulares.
+   · Editorial, no plantilla: títulos normales, jerarquía por tamaño y
+     peso, separadores finos en vez de cajas dentro de cajas.
+   · Un solo acento (celeste FutbolLab). El resto del color es dato:
+     4 colores de área y una escala fija para las notas 1–5.
+   · Sin degradados, sin cristal, sin sombras en oscuro, sin emojis.
+   · Movimiento corto (120–200 ms) y respetando "reducir movimiento".
+   Documentación: DISENO.md
+   ═════════════════════════════════════════════════════════════════════ */
+
+/* ───────────── 1. Tokens ───────────── */
+[data-estilo='v2'] {
+  --bg: #0b1722;
+  --bg-2: #08121b;
+  --surface: #111f2b;
+  --surface-2: #172836;
+  --surface-3: #1f3446;
+  --line: rgba(226, 234, 240, 0.08);
+  --line-2: rgba(226, 234, 240, 0.16);
+  /* escala de notas 1–5: sin rojo sobre jugadores; siempre con el número */
+  --n1: #f0a06a;
+  --n2: #e9c46a;
+  --n3: #a9b8c5;
+  --n4: #7bd08a;
+  --n5: #64bdd9;
+  --n-ink: #0b1722;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-card: 18px;
+  --r-input: 12px;
+  --fuente-titulo: 'Bricolage Grotesque Variable', 'Montserrat', system-ui, sans-serif;
+  --anim: 160ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  --anchura-lateral: 240px;
+}
+[data-estilo='v2'][data-tema='claro'] {
+  --bg: #f3f6f8;
+  --bg-2: #e8eef2;
+  --surface: #ffffff;
+  --surface-2: #eef3f6;
+  --surface-3: #dde6ec;
+  --line: rgba(14, 28, 42, 0.08);
+  --line-2: rgba(14, 28, 42, 0.16);
+  --n1: #b4561f;
+  --n2: #8c6a0c;
+  --n3: #5b6b78;
+  --n4: #2b8442;
+  --n5: #0b78ae;
+  --n-ink: #ffffff;
+}
+
+/* ───────────── 2. Base ───────────── */
+[data-estilo='v2'] body {
+  background-image: none;
+}
+[data-estilo='v2'] ::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+[data-estilo='v2'] .pantalla {
+  animation: v2-entrar 180ms ease-out;
+}
+@keyframes v2-entrar {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+[data-estilo='v2'] .esqueleto {
+  display: grid;
+  gap: 12px;
+  padding: 24px 0;
+}
+[data-estilo='v2'] .esq {
+  display: block;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  animation: v2-pulso 1.1s ease-in-out infinite alternate;
+}
+[data-estilo='v2'] .esq-titulo {
+  width: 55%;
+  height: 38px;
+}
+[data-estilo='v2'] .esq-linea {
+  width: 35%;
+  height: 14px;
+}
+[data-estilo='v2'] .esq-bloque {
+  height: 140px;
+  border-radius: var(--r-card);
+}
+[data-estilo='v2'] .esq-bloque.corto {
+  height: 90px;
+}
+@keyframes v2-pulso {
+  to {
+    opacity: 0.45;
+  }
+}
+
+/* ───────────── 3. Tipografía ───────────── */
+[data-estilo='v2'] .cabecera {
+  padding: 22px 0 10px;
+}
+[data-estilo='v2'] .cabecera h1 {
+  font-size: 2.2rem;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+[data-estilo='v2'] .bloque h2,
+[data-estilo='v2'] .grupo legend {
+  font-family: var(--fuente-titulo);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: var(--text);
+}
+[data-estilo='v2'] .bloque h2::before,
+[data-estilo='v2'] .grupo legend::before {
+  content: none;
+}
+[data-estilo='v2'] .eyebrow,
+[data-estilo='v2'] .kpi-e,
+[data-estilo='v2'] .dato-et,
+[data-estilo='v2'] .ordenar,
+[data-estilo='v2'] .ordenar span,
+[data-estilo='v2'] .logo-app,
+[data-estilo='v2'] .tarjeta-pos,
+[data-estilo='v2'] .hero-media .sub {
+  text-transform: none;
+  letter-spacing: 0;
+}
+[data-estilo='v2'] .media,
+[data-estilo='v2'] .dato-val,
+[data-estilo='v2'] .kpi-v {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+[data-estilo='v2'] .nota-pie {
+  color: var(--text-3);
+  font-size: 0.8rem;
+}
+
+/* ───────────── 4. Estructura y navegación ───────────── */
+[data-estilo='v2'] .appbar {
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+}
+[data-estilo='v2'] .tabbar {
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg-2) 96%, transparent);
+}
+[data-estilo='v2'] .tab {
+  font-weight: 600;
+  letter-spacing: 0;
+  transition: color var(--anim);
+}
+[data-estilo='v2'] .tab.on {
+  color: var(--accent-text);
+}
+/* Tablet: más aire, la columna crece */
+@media (min-width: 700px) {
+  [data-estilo='v2'] .app:not(.ancha) {
+    max-width: 920px;
+  }
+  [data-estilo='v2'] .tabbar {
+    max-width: 920px;
+  }
+  [data-estilo='v2'] main {
+    padding: 0 24px;
+  }
+}
+/* Ordenador: menú lateral fijo en lugar de la barra inferior */
+@media (min-width: 1024px) {
+  [data-estilo='v2'] .app:not(.completa):not(.app-admin) {
+    max-width: none;
+    padding-left: var(--anchura-lateral);
+    padding-bottom: 48px;
+  }
+  [data-estilo='v2'] .app:not(.completa):not(.app-admin) > .appbar {
+    margin-left: calc(-1 * var(--anchura-lateral));
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+  [data-estilo='v2'] .app:not(.completa):not(.app-admin) main {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 8px 40px 0;
+  }
+  [data-estilo='v2'] .app:not(.completa):not(.app-admin) > .estado-conexion,
+  [data-estilo='v2'] .app:not(.completa):not(.app-admin) > .aviso-global {
+    max-width: 1040px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  [data-estilo='v2'] .tabbar.tabbar-4 {
+    top: 61px;
+    bottom: 0;
+    left: 0;
+    transform: none;
+    width: var(--anchura-lateral);
+    max-width: none;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 20px 14px;
+    border-top: 0;
+    border-right: 1px solid var(--line);
+    background: var(--bg-2);
+    backdrop-filter: none;
+  }
+  [data-estilo='v2'] .tabbar-4 .tab {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    min-height: 46px;
+    padding: 0 14px;
+    border-radius: var(--r-md);
+    font-size: 0.95rem;
+    color: var(--text-2);
+    transition: background var(--anim), color var(--anim);
+  }
+  [data-estilo='v2'] .tabbar-4 .tab:hover {
+    background: var(--surface);
+    color: var(--text);
+  }
+  [data-estilo='v2'] .tabbar-4 .tab.on {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  [data-estilo='v2'] .tabbar-4 .tab.on::before {
+    top: 12px;
+    bottom: 12px;
+    left: 0;
+    width: 3px;
+    height: auto;
+    border-radius: 0 3px 3px 0;
+  }
+  /* Evaluar, la acción principal, destaca también en el menú lateral */
+  [data-estilo='v2'] .tabbar-4 .tab.tab-evaluar {
+    order: -1;
+    margin-bottom: 14px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 700;
+  }
+  [data-estilo='v2'] .tabbar-4 .tab.tab-evaluar svg {
+    color: var(--accent-ink);
+  }
+  [data-estilo='v2'] .tabbar-4 .tab.tab-evaluar::before {
+    content: none;
+  }
+  [data-estilo='v2'] .app.completa:not(.app-admin) {
+    max-width: 760px;
+  }
+}
+
+/* ───────────── 5. Superficies ───────────── */
+[data-estilo='v2'] .bloque {
+  border: 0;
+  box-shadow: none;
+  border-radius: var(--r-card);
+  padding: 18px;
+  margin: 14px 0;
+}
+[data-estilo='v2'][data-tema='claro'] .bloque,
+[data-estilo='v2'][data-tema='claro'] .tarjeta,
+[data-estilo='v2'][data-tema='claro'] .grupo {
+  box-shadow: 0 1px 2px rgba(14, 28, 42, 0.05), 0 0 0 1px rgba(14, 28, 42, 0.04);
+}
+[data-estilo='v2'] .kpis {
+  border: 0;
+}
+[data-estilo='v2'] .grupo {
+  border: 0;
+  background: var(--surface);
+  border-radius: var(--r-card);
+  padding: 18px;
+}
+[data-estilo='v2'] .grupo legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  margin: 0 0 12px;
+}
+[data-estilo='v2'] .grupo legend + * {
+  clear: both;
+}
+[data-estilo='v2'] .vacio-v2 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px 16px;
+  text-align: center;
+  color: var(--text-2);
+}
+[data-estilo='v2'] .vacio-v2 p {
+  margin: 0;
+  max-width: 320px;
+}
+[data-estilo='v2'] .vacio-icono {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--accent-text);
+  display: grid;
+  place-items: center;
+}
+[data-estilo='v2'] .aviso-global,
+[data-estilo='v2'] .estado-conexion {
+  border-radius: var(--r-md);
+}
+
+/* ───────────── 6. Controles ───────────── */
+[data-estilo='v2'] .btn {
+  border-width: 1px;
+  transition: background var(--anim), transform var(--anim), border-color var(--anim);
+}
+[data-estilo='v2'] .btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+[data-estilo='v2'] .btn.primario:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  background: color-mix(in srgb, var(--accent) 88%, #ffffff);
+}
+[data-estilo='v2'] .icon-btn {
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface);
+  transition: background var(--anim);
+}
+[data-estilo='v2'] .icon-btn:hover {
+  background: var(--surface-2);
+}
+[data-estilo='v2'] .icon-btn.plano {
+  background: transparent;
+}
+[data-estilo='v2'] .campo input,
+[data-estilo='v2'] .campo select,
+[data-estilo='v2'] .campo textarea,
+[data-estilo='v2'] .buscar,
+[data-estilo='v2'] .ordenar {
+  border-color: var(--line);
+  border-radius: var(--r-input);
+  background: var(--bg-2);
+  transition: border-color var(--anim), box-shadow var(--anim);
+}
+[data-estilo='v2'][data-tema='claro'] .campo input,
+[data-estilo='v2'][data-tema='claro'] .campo select,
+[data-estilo='v2'][data-tema='claro'] .campo textarea,
+[data-estilo='v2'][data-tema='claro'] .buscar,
+[data-estilo='v2'][data-tema='claro'] .ordenar {
+  background: #ffffff;
+  border-color: var(--line-2);
+}
+[data-estilo='v2'] .campo input:focus,
+[data-estilo='v2'] .campo select:focus,
+[data-estilo='v2'] .campo textarea:focus,
+[data-estilo='v2'] .buscar:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+[data-estilo='v2'] .campo-et {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+[data-estilo='v2'] .segmentado {
+  border: 0;
+  border-radius: var(--r-md);
+  padding: 4px;
+  background: var(--bg-2);
+}
+[data-estilo='v2'] .segmentado button {
+  border-radius: var(--r-sm);
+  min-height: 44px;
+  transition: background var(--anim), color var(--anim);
+}
+[data-estilo='v2'] .segmentado.pequeno button {
+  min-height: 38px;
+}
+[data-estilo='v2'] .segmentado button.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: none;
+}
+[data-estilo='v2'] .filtro,
+[data-estilo='v2'] .chip-btn {
+  border-color: transparent;
+  background: var(--surface);
+  transition: background var(--anim), color var(--anim);
+}
+[data-estilo='v2'] .filtro.on,
+[data-estilo='v2'] .chip-btn.on {
+  background: var(--text);
+  color: var(--bg);
+}
+/* Etiquetas de estado: píldoras suaves, sin mayúsculas ni borde */
+[data-estilo='v2'] .chip {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 3px 10px;
+  border-width: 0;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+/* ───────────── 7. Camiseta con dorsal ───────────── */
+[data-estilo='v2'] .avatar.camiseta {
+  border-radius: 0;
+  background: none;
+  overflow: visible;
+}
+[data-estilo='v2'] .camiseta path {
+  fill: color-mix(in srgb, var(--text) 22%, var(--surface));
+}
+[data-estilo='v2'] .camiseta text {
+  fill: var(--text);
+  font-family: var(--fuente-titulo);
+  font-weight: 800;
+}
+[data-estilo='v2'] .camiseta.destacada path,
+[data-estilo='v2'] .hero .camiseta path,
+[data-estilo='v2'] .eval-jugador .camiseta path {
+  fill: var(--accent);
+}
+[data-estilo='v2'] .camiseta.destacada text,
+[data-estilo='v2'] .hero .camiseta text,
+[data-estilo='v2'] .eval-jugador .camiseta text {
+  fill: var(--accent-ink);
+}
+[data-estilo='v2'] .camiseta + .dorsal-mini {
+  display: none;
+}
+
+/* ───────────── 8. Inicio ───────────── */
+[data-estilo='v2'] .portada {
+  position: relative;
+  margin: 0 -16px;
+  padding: 26px 16px 4px;
+  overflow: hidden;
+}
+[data-estilo='v2'] .portada-campo {
+  position: absolute;
+  inset: 0 0 auto 0;
+  width: 100%;
+  height: 300px;
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 2;
+  opacity: 0.07;
+  pointer-events: none;
+}
+[data-estilo='v2'] .portada-fecha,
+[data-estilo='v2'] .portada-sub {
+  position: relative;
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--text-2);
+}
+[data-estilo='v2'] .portada-fecha::first-letter {
+  text-transform: uppercase;
+}
+[data-estilo='v2'] .portada-equipo {
+  position: relative;
+  margin: 4px 0 6px;
+  font-size: clamp(2.8rem, 9vw, 4.2rem);
+  font-weight: 800;
+  line-height: 0.92;
+  letter-spacing: -0.045em;
+}
+[data-estilo='v2'] .indicadores {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 18px 0 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+[data-estilo='v2'] .indicadores > div {
+  padding: 12px 0 12px 14px;
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: 2px;
+}
+[data-estilo='v2'] .indicadores > div:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+[data-estilo='v2'] .indicadores dt {
+  font-size: 0.78rem;
+  color: var(--text-2);
+  line-height: 1.25;
+}
+[data-estilo='v2'] .indicadores dd {
+  margin: 0;
+  font-family: var(--fuente-titulo);
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+[data-estilo='v2'] .indicadores dd small {
+  font-size: 1rem;
+  color: var(--text-3);
+  font-weight: 700;
+}
+[data-estilo='v2'] .indicadores dd.atencion {
+  color: var(--warn);
+}
+[data-estilo='v2'] .cta {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-radius: var(--r-card);
+  transition: transform var(--anim), background var(--anim);
+}
+[data-estilo='v2'] .cta:hover {
+  background: color-mix(in srgb, var(--accent) 90%, #ffffff);
+}
+[data-estilo='v2'] .cta:active {
+  transform: scale(0.99);
+}
+[data-estilo='v2'] .cta::after {
+  content: none;
+}
+[data-estilo='v2'] .cta .sub {
+  color: var(--accent-ink);
+  opacity: 0.85;
+  font-weight: 600;
+}
+[data-estilo='v2'] .cta-txt strong {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+[data-estilo='v2'] .cta-mas {
+  background: var(--accent-ink);
+  color: var(--accent);
+}
+[data-estilo='v2'] .cta.cta-principal {
+  margin-top: 18px;
+}
+[data-estilo='v2'] .alerta .avatar {
+  border-radius: 0;
+}
+[data-estilo='v2'] .alerta {
+  transition: opacity var(--anim);
+}
+[data-estilo='v2'] .alerta:hover {
+  opacity: 0.8;
+}
+[data-estilo='v2'] .en-forma {
+  list-style: none;
+  margin: 0 -18px;
+  padding: 0 18px 4px;
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+[data-estilo='v2'] .en-forma li {
+  scroll-snap-align: start;
+}
+[data-estilo='v2'] .en-forma-tarjeta {
+  width: 136px;
+  min-height: 150px;
+  padding: 14px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: background var(--anim);
+}
+[data-estilo='v2'] .en-forma-tarjeta:hover {
+  background: var(--surface-3);
+}
+[data-estilo='v2'] .en-forma-tarjeta strong {
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+[data-estilo='v2'] .en-forma-tarjeta .tend {
+  margin-top: auto;
+  font-family: var(--fuente-titulo);
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+[data-estilo='v2'] .actividad-reciente {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+[data-estilo='v2'] .actividad-reciente li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+[data-estilo='v2'] .actividad-reciente li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+[data-estilo='v2'] .actividad-reciente .crece {
+  display: flex;
+  flex-direction: column;
+}
+[data-estilo='v2'] .actividad-fecha {
+  width: 48px;
+  height: 52px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  flex: none;
+}
+[data-estilo='v2'] .actividad-fecha strong {
+  font-family: var(--fuente-titulo);
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+[data-estilo='v2'] .actividad-fecha span {
+  font-size: 0.75rem;
+  color: var(--text-2);
+}
+@media (min-width: 1024px) {
+  [data-estilo='v2'] .portada {
+    margin: 0;
+    padding: 34px 0 6px;
+  }
+  [data-estilo='v2'] .indicadores {
+    grid-template-columns: repeat(3, minmax(0, 220px));
+  }
+  [data-estilo='v2'] .inicio-rejilla {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+    margin-top: 20px;
+  }
+  [data-estilo='v2'] .inicio-col > :first-child {
+    margin-top: 0;
+  }
+  [data-estilo='v2'] .inicio-col .en-forma {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+  [data-estilo='v2'] .inicio-col .en-forma-tarjeta {
+    width: auto;
+  }
+}
+
+/* ───────────── 9. Plantilla ───────────── */
+[data-estilo='v2'] .rejilla {
+  gap: 12px;
+}
+@media (min-width: 1024px) {
+  [data-estilo='v2'] .rejilla {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+}
+[data-estilo='v2'] .tarjeta {
+  background: var(--surface);
+  border: 0;
+  padding: 14px;
+  transition: background var(--anim), transform var(--anim);
+}
+[data-estilo='v2'] .tarjeta:hover {
+  background: var(--surface-2);
+}
+[data-estilo='v2'] .tarjeta .dorsal {
+  display: none;
+}
+[data-estilo='v2'] .fav {
+  left: auto;
+  right: 0;
+  top: 0;
+}
+[data-estilo='v2'] .tarjeta-nombre {
+  font-size: 1rem;
+}
+[data-estilo='v2'] .tarjeta-media {
+  border-top: 0;
+}
+[data-estilo='v2'] .tarjeta .media {
+  font-size: 2rem;
+}
+/* Escala 1→5 sobre la altura: el perfil del jugador se distingue de un vistazo */
+[data-estilo='v2'] .mini-areas {
+  display: grid;
+  grid-template-columns: repeat(4, 10px);
+  align-items: end;
+  gap: 5px;
+  height: 30px;
+  margin-top: 10px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--line);
+  width: fit-content;
+}
+[data-estilo='v2'] .tarjeta .chip {
+  white-space: normal;
+  max-width: 100%;
+}
+[data-estilo='v2'] .mini-areas i {
+  display: block;
+  border-radius: 3px 3px 1px 1px;
+  min-height: 2px;
+}
+[data-estilo='v2'] .herramientas {
+  align-items: center;
+}
+
+/* ───────────── 10. Ficha del jugador ───────────── */
+[data-estilo='v2'] .hero {
+  padding: 10px 0 8px;
+}
+[data-estilo='v2'] .hero-dorsal {
+  display: none; /* ya va en la camiseta */
+}
+[data-estilo='v2'] .media.grande {
+  font-size: 3.6rem;
+}
+[data-estilo='v2'] .pestanas {
+  border-bottom: 0;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+[data-estilo='v2'] .pestanas button {
+  flex: 1;
+  border: 0;
+  border-radius: var(--r-sm);
+  font-weight: 600;
+  transition: background var(--anim), color var(--anim);
+}
+[data-estilo='v2'] .pestanas button.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+[data-estilo='v2'] .fuerte-flojo {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 16px;
+}
+[data-estilo='v2'] .fuerte-flojo > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+[data-estilo='v2'] .fuerte-flojo small {
+  font-size: 0.78rem;
+  color: var(--text-2);
+}
+[data-estilo='v2'] .fuerte-flojo strong {
+  font-family: var(--fuente-titulo);
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+[data-estilo='v2'] .fuerte-flojo .num {
+  font-weight: 700;
+}
+[data-estilo='v2'] .barras {
+  gap: 14px;
+}
+[data-estilo='v2'] .barras li {
+  grid-template-columns: 82px 1fr 40px;
+  font-size: 0.92rem;
+}
+[data-estilo='v2'] .barras-pista {
+  height: 10px;
+  border-radius: 5px;
+}
+[data-estilo='v2'] .barras-valor {
+  border-radius: 5px;
+}
+[data-estilo='v2'] .barras .num {
+  font-family: var(--fuente-titulo);
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+[data-estilo='v2'] .ver-radar {
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+[data-estilo='v2'] .ver-radar > summary {
+  color: var(--accent-text);
+  font-weight: 600;
+  font-size: 0.9rem;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+[data-estilo='v2'] .datos {
+  gap: 8px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+[data-estilo='v2'] .dato {
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+}
+[data-estilo='v2'] .dato-et {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+[data-estilo='v2'] .segmentos i {
+  width: 16px;
+  height: 8px;
+  border-radius: 2px;
+}
+[data-estilo='v2'] .puntos.n1 .segmentos i.on {
+  background: var(--n1);
+}
+[data-estilo='v2'] .puntos.n2 .segmentos i.on {
+  background: var(--n2);
+}
+[data-estilo='v2'] .puntos.n3 .segmentos i.on {
+  background: var(--n3);
+}
+[data-estilo='v2'] .puntos.n4 .segmentos i.on {
+  background: var(--n4);
+}
+[data-estilo='v2'] .puntos.n5 .segmentos i.on {
+  background: var(--n5);
+}
+@media (min-width: 1024px) {
+  [data-estilo='v2'] .ficha-rejilla {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 0 20px;
+    align-items: start;
+  }
+  [data-estilo='v2'] .ficha-rejilla > :first-child {
+    grid-row: span 2;
+  }
+}
+
+/* ───────────── 11. Evolución ───────────── */
+[data-estilo='v2'] .evo-controles {
+  margin: 12px 0 0;
+  max-width: 380px;
+}
+[data-estilo='v2'] .evo-areas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+[data-estilo='v2'] .evo-area {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--text-2);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background var(--anim), color var(--anim), border-color var(--anim);
+}
+[data-estilo='v2'] .evo-area i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+[data-estilo='v2'] .evo-area.on {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
+}
+[data-estilo='v2'] .evo-cambios li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 60px auto auto;
+  gap: 12px;
+}
+[data-estilo='v2'] .evo-cambios .crece {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+[data-estilo='v2'] .evo-punto {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+[data-estilo='v2'] .evo-pista {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+[data-estilo='v2'] .evo-pista span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+}
+@media (min-width: 1024px) {
+  [data-estilo='v2'] .evolucion-rejilla {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+}
+
+/* ───────────── 12. Evaluación rápida ───────────── */
+[data-estilo='v2'] .eval-dorsal {
+  display: none; /* ya va en la camiseta */
+}
+[data-estilo='v2'] .eval-nombre {
+  font-family: var(--fuente-titulo);
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+[data-estilo='v2'] .progreso span {
+  height: 5px;
+  border-radius: 3px;
+}
+[data-estilo='v2'] .nota {
+  border: 0;
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  transition: background var(--anim), color var(--anim), transform 80ms;
+}
+[data-estilo='v2'] .nota:hover {
+  background: var(--surface-3);
+}
+/* La nota elegida toma el color de su escala: se comprueba sin leer */
+[data-estilo='v2'] .nota.on,
+[data-estilo='v2'] .nota.on .nota-e {
+  color: var(--n-ink);
+}
+[data-estilo='v2'] .nota.on.n1 {
+  background: var(--n1);
+}
+[data-estilo='v2'] .nota.on.n2 {
+  background: var(--n2);
+}
+[data-estilo='v2'] .nota.on.n3 {
+  background: var(--n3);
+}
+[data-estilo='v2'] .nota.on.n4 {
+  background: var(--n4);
+}
+[data-estilo='v2'] .nota.on.n5 {
+  background: var(--n5);
+}
+[data-estilo='v2'] .plantilla {
+  border-color: var(--line);
+  border-radius: var(--r-md);
+  transition: border-color var(--anim), background var(--anim);
+}
+[data-estilo='v2'] .plantilla.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+[data-estilo='v2'] .deshacer {
+  border: 0;
+  border-radius: var(--r-md);
+}
+
+/* ───────────── 13. Administración ───────────── */
+[data-estilo='v2'] .admin-tarjeta {
+  border: 0;
+  background: var(--surface);
+  transition: background var(--anim);
+}
+[data-estilo='v2'] .admin-tarjeta:hover {
+  background: var(--surface-2);
+}
+[data-estilo='v2'] .admin-tarjeta.aviso {
+  background: color-mix(in srgb, var(--warn) 12%, var(--surface));
+  box-shadow: none;
+}
+[data-estilo='v2'] .admin-tarjeta-v {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+[data-estilo='v2'] .tabla-scroll {
+  border: 0;
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+[data-estilo='v2'] .tabla-admin th {
+  letter-spacing: 0.04em;
+  font-size: 0.75rem;
+}
+[data-estilo='v2'] .tabla-admin tbody tr {
+  transition: background var(--anim);
+}
+[data-estilo='v2'] .tabla-admin tbody tr:hover {
+  background: var(--surface-2);
+}
+[data-estilo='v2'] .tabla-admin td .avatar {
+  border-radius: 0;
+}
+[data-estilo='v2'] .seccion {
+  border: 0;
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+[data-estilo='v2'] .admin-filtro button {
+  border-radius: var(--r-sm);
+}
+
+/* ───────────── 14. Acceso ───────────── */
+[data-estilo='v2'] .acceso-app {
+  letter-spacing: 0.2em;
+}
+[data-estilo='v2'] .acceso-campo {
+  background:
+    radial-gradient(circle at 50% 160px, transparent 129px, var(--pitch-line) 130px, var(--pitch-line) 132px, transparent 133px),
+    radial-gradient(circle at 50% 160px, var(--pitch-line) 4px, transparent 5px),
+    linear-gradient(var(--pitch-line), var(--pitch-line)) 0 159px / 100% 2px no-repeat;
+}
+@media (min-width: 760px) {
+  [data-estilo='v2'] .acceso {
+    justify-content: center;
+  }
+  [data-estilo='v2'] .acceso-caja {
+    max-width: 460px;
+    padding: 8px 32px 32px;
+    border-radius: 24px;
+    background: var(--surface);
+  }
+  [data-estilo='v2'] .acceso-pie {
+    margin-top: 24px;
+  }
+}
+
+/* ───────────── 15. Movimiento reducido ───────────── */
+@media (prefers-reduced-motion: reduce) {
+  [data-estilo='v2'] .pantalla,
+  [data-estilo='v2'] .esq {
+    animation: none;
+  }
+  [data-estilo='v2'] * {
+    transition-duration: 0ms !important;
+  }
+}

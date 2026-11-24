@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { Icon } from '../ui/Icon'
 import { useApp } from '../state/store'
 import { ir, volver } from '../state/router'
-import { Avatar, BarrasArea, Cabecera, Dato, Enlace, EstadoChip, Tendencia, Vacio } from '../ui/components'
+import { Avatar, BarrasArea, Cabecera, Dato, Enlace, EstadoChip, Tendencia, Vacio, claseNota } from '../ui/components'
 import { RadarAreas } from '../ui/RadarAreas'
-import { POSICION_NOMBRE, edad, fechaCorta, fechaLarga, num0, num1, pct } from '../logic/format'
+import { AREAS, AREA_COLOR, AREA_CORTO, POSICION_NOMBRE, edad, fechaCorta, fechaLarga, num0, num1, pct } from '../logic/format'
+import { FLAGS } from '../config'
 import { puedeVerFicha, puedeVerNota, tieneConsentimientoFicha, validarConsentimiento } from '../logic/privacy'
 import type { Consentimiento, FirmanteTipo, Jugador as TJugador } from '../model/types'
 
@@ -99,6 +100,11 @@ function Resumen({ j }: { j: TJugador }) {
   const ultima = ds.evaluaciones.filter((e) => e.jugadorId === j.id).sort((a, b) => b.fecha.localeCompare(a.fecha))[0]
   const nombreItem = (id: string) => ds.items.find((i) => i.id === id)?.nombre ?? id
   const cargaDelta = x.cargaMediaSemanal ? (x.cargaSemana - x.cargaMediaSemanal) / x.cargaMediaSemanal : null
+  // Su área más alta y la más baja, comparando al jugador solo consigo mismo.
+  const conNota = AREAS.filter((a) => r.areas[a] != null)
+  const ordenadas = [...conNota].sort((a, b) => r.areas[b]! - r.areas[a]!)
+  const fuerte = ordenadas.length >= 2 && r.areas[ordenadas[0]]! > r.areas[ordenadas[ordenadas.length - 1]]! ? ordenadas[0] : null
+  const flojo = fuerte ? ordenadas[ordenadas.length - 1] : null
   return (
     <>
       {est && est.tipo !== 'disponible' && (
@@ -108,10 +114,37 @@ function Resumen({ j }: { j: TJugador }) {
           {est.nota && <p className="sub">{est.nota}</p>}
         </div>
       )}
+      <div className="ficha-rejilla">
       <section className="bloque">
         <h2>Áreas</h2>
-        <RadarAreas areas={r.areas} comparar={antes} etiquetaComparar="Hace 30 días" />
-        <BarrasArea areas={r.areas} comparar={antes} />
+        {FLAGS.disenoV2 ? (
+          <>
+            {fuerte && flojo && (
+              <div className="fuerte-flojo">
+                <span>
+                  <small>Punto fuerte</small>
+                  <strong style={{ color: AREA_COLOR[fuerte] }}>{AREA_CORTO[fuerte]}</strong>
+                  <span className="num">{num1(r.areas[fuerte])}</span>
+                </span>
+                <span>
+                  <small>A trabajar</small>
+                  <strong style={{ color: AREA_COLOR[flojo] }}>{AREA_CORTO[flojo]}</strong>
+                  <span className="num">{num1(r.areas[flojo])}</span>
+                </span>
+              </div>
+            )}
+            <BarrasArea areas={r.areas} comparar={antes} />
+            <details className="ver-radar">
+              <summary>Ver en radar</summary>
+              <RadarAreas areas={r.areas} comparar={antes} etiquetaComparar="Hace 30 días" />
+            </details>
+          </>
+        ) : (
+          <>
+            <RadarAreas areas={r.areas} comparar={antes} etiquetaComparar="Hace 30 días" />
+            <BarrasArea areas={r.areas} comparar={antes} />
+          </>
+        )}
         <p className="nota-pie">{antes ? 'La línea discontinua y la raya vertical marcan cómo estaba hace 30 días. ' : 'Aún no hay evaluaciones de hace 30 días para comparar. '}{r.numEvaluaciones} evaluaciones{r.ultimaEvaluacion && `, la última el ${fechaCorta(r.ultimaEvaluacion)}`}.</p>
         <div className="botones">
           <Enlace to={{ nombre: 'evolucion', id: j.id }} className="btn">
@@ -143,7 +176,7 @@ function Resumen({ j }: { j: TJugador }) {
             {ultima.puntuaciones.map((p) => (
               <li key={p.itemId}>
                 <span>{nombreItem(p.itemId)}</span>
-                <span className="puntos num" aria-label={`${p.valor} de 5`}>
+                <span className={`puntos num ${claseNota(p.valor)}`} aria-label={`${p.valor} de 5`}>
                   <span className="segmentos" aria-hidden>
                     {[1, 2, 3, 4, 5].map((k) => (
                       <i key={k} className={k <= p.valor ? 'on' : ''} />
@@ -156,6 +189,7 @@ function Resumen({ j }: { j: TJugador }) {
           </ul>
         </section>
       )}
+      </div>
     </>
   )
 }

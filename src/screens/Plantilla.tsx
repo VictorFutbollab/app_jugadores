@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import { Icon } from '../ui/Icon'
 import { useApp } from '../state/store'
 import { Avatar, Cabecera, Enlace, EstadoChip, Tendencia, Vacio } from '../ui/components'
-import { POSICION_ORDEN, num0, num1, pct } from '../logic/format'
+import { AREAS, AREA_COLOR, AREA_CORTO, POSICION_ORDEN, num0, num1, pct } from '../logic/format'
+import { FLAGS } from '../config'
 import { tieneConsentimientoFicha } from '../logic/privacy'
 import type { Jugador, TipoEstado } from '../model/types'
 
@@ -108,6 +109,13 @@ export function Plantilla() {
                         <span className="media num">{num1(r.media)}</span>
                         <Tendencia v={r.tendencia} />
                       </div>
+                      {FLAGS.disenoV2 && r.media != null && (
+                        <span className="mini-areas" role="img" aria-label={AREAS.map((a) => `${AREA_CORTO[a]} ${num1(r.areas[a])}`).join(', ')}>
+                          {AREAS.map((a) => (
+                            <i key={a} style={{ height: `${r.areas[a] == null ? 0 : 8 + ((r.areas[a]! - 1) / 4) * 92}%`, background: AREA_COLOR[a] }} />
+                          ))}
+                        </span>
+                      )}
                       {orden === 'minutos' && <span className="tarjeta-extra num">{num0(x.minutos)} min</span>}
                       {orden === 'asistencia' && <span className="tarjeta-extra num">{pct(x.asistenciaPct)} asist.</span>}
                     </>

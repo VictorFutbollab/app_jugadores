@@ -148,12 +148,24 @@ function Shell() {
       <main>
         <Suspense
           fallback={
-            <div className="cargando-pantalla" role="status">
-              Cargando…
-            </div>
+            FLAGS.disenoV2 ? (
+              <div className="esqueleto" role="status" aria-label="Cargando">
+                <span className="esq esq-titulo" />
+                <span className="esq esq-linea" />
+                <span className="esq esq-bloque" />
+                <span className="esq esq-bloque corto" />
+              </div>
+            ) : (
+              <div className="cargando-pantalla" role="status">
+                Cargando…
+              </div>
+            )
           }
         >
-          <Pantalla r={r} />
+          {/* La clave por pantalla hace que cada cambio de sección entre con una transición suave */}
+          <div className="pantalla" key={r.nombre}>
+            <Pantalla r={r} />
+          </div>
         </Suspense>
       </main>
       {!pantallaCompleta &&

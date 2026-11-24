@@ -17,6 +17,17 @@ const POR_DEFECTO = {
   navegacion4: true,
   /** Inicio con un único botón protagonista, "Necesitan tu mirada" (máx. 3) y "Más mejoran este mes". */
   inicioNuevo: true,
+  /**
+   * Diseño "Vestuario": camisetas con dorsal en vez de iniciales, números grandes,
+   * títulos normales (sin versalitas ni rayita), menos cajas y CTA sólido.
+   * Desactivarlo devuelve el diseño anterior al completo.
+   */
+  disenoV2: true,
+  /**
+   * Capa visual sobre el diseño nuevo: 'cesped' (clara, deportiva, césped a franjas
+   * y verde como color principal) o 'vestuario' (oscura, celeste FutbolLab).
+   */
+  estiloVisual: 'cesped' as 'cesped' | 'vestuario',
 }
 
 export type Flags = typeof POR_DEFECTO

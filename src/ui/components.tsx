@@ -1,13 +1,28 @@
 import type { ReactNode } from 'react'
-import { Icon } from './Icon'
+import { Icon, type NombreIcono } from './Icon'
 import type { Estado, Jugador } from '../model/types'
 import { AREAS, AREA_COLOR, AREA_CORTO, ESTADO_INFO, iniciales, num1 } from '../logic/format'
 import { puedeMostrarFoto } from '../logic/privacy'
 import type { AreaScores } from '../logic/stats'
 import { href, type Ruta } from '../state/router'
+import { FLAGS } from '../config'
+
+/** Camiseta con el dorsal: identifica al jugador sin foto y sin datos personales. */
+export function Camiseta({ dorsal, size = 56, className = '' }: { dorsal: number | string | null | undefined; size?: number; className?: string }) {
+  const n = dorsal == null || dorsal === '' ? '' : String(dorsal)
+  return (
+    <svg className={`avatar camiseta ${className}`} width={size} height={size} viewBox="0 0 48 48" aria-hidden>
+      <path d="M16 6 8 10 3 19l6 4 3-3v22h24V20l3 3 6-4-5-9-8-4c-2 4-5 6-8 6s-6-2-8-6Z" />
+      <text x="24" y="35" textAnchor="middle" fontSize={n.length > 1 ? 14 : 15}>
+        {n}
+      </text>
+    </svg>
+  )
+}
 
 export function Avatar({ j, size = 56 }: { j: Jugador; size?: number }) {
   if (puedeMostrarFoto(j)) return <img className="avatar" src={j.foto!} alt="" width={size} height={size} />
+  if (FLAGS.disenoV2) return <Camiseta dorsal={j.dorsal} size={size} />
   return (
     <span className="avatar ini" aria-hidden style={{ width: size, height: size, fontSize: size * 0.38 }}>
       {iniciales(j.nombre, j.apellidos)}
@@ -97,6 +112,17 @@ export function Dato({ etiqueta, valor, extra, fuente }: { etiqueta: string; val
   )
 }
 
-export function Vacio({ children }: { children: ReactNode }) {
-  return <p className="vacio">{children}</p>
+export function Vacio({ children, icono = 'plantilla' }: { children: ReactNode; icono?: NombreIcono }) {
+  if (!FLAGS.disenoV2) return <p className="vacio">{children}</p>
+  return (
+    <div className="vacio vacio-v2">
+      <span className="vacio-icono" aria-hidden>
+        <Icon n={icono} size={26} />
+      </span>
+      <p>{children}</p>
+    </div>
+  )
 }
+
+/** Escala fija de color para las notas 1–5 (siempre acompañada del número, nunca solo color). */
+export const claseNota = (v: number | null | undefined) => (v == null ? 'n0' : `n${Math.min(5, Math.max(1, Math.round(v)))}`)

@@ -8,7 +8,16 @@ import '@fontsource/inter/latin-700.css'
 // Títulos: Bricolage Grotesque, la misma tipografía de futbollab.com
 import '@fontsource-variable/bricolage-grotesque/wght.css'
 import './index.css'
+import './estilo-v2.css'
+import './estilo-cesped.css'
 import App from './App'
+import { FLAGS } from './config'
+
+// Diseño nuevo: estructura en html[data-estilo='v2'] y capa visual en html[data-visual].
+if (FLAGS.disenoV2) {
+  document.documentElement.dataset.estilo = 'v2'
+  document.documentElement.dataset.visual = FLAGS.estiloVisual
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

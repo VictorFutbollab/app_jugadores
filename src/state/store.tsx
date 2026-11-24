@@ -10,6 +10,7 @@ import { datosExternos, resumenJugador, type DatosExternos, type ResumenJugador 
 import { minimizar } from '../logic/privacy'
 import { quedaAlgunAdmin } from '../logic/admin'
 import { Acceso, type Panel } from '../screens/Acceso'
+import { FLAGS } from '../config'
 
 const CLAVE_PANEL = 'panel'
 function leerPanel(): Panel {
@@ -238,7 +239,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     ;(async () => {
-      setTemaState((await DB.leerAjuste<Tema>('tema')) ?? 'oscuro')
+      // "Césped" está pensado en claro; quien eligió un tema lo conserva.
+      setTemaState((await DB.leerAjuste<Tema>('tema')) ?? (FLAGS.disenoV2 && FLAGS.estiloVisual === 'cesped' ? 'claro' : 'oscuro'))
       setVerComoState((await DB.leerAjuste<VerComo>('verComo')) ?? 'yo')
       setEquipoElegido((await DB.leerAjuste<string>('equipoActivo')) ?? null)
       if (!supabaseConfigurado) return setFase('fuera')

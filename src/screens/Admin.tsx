@@ -987,6 +987,11 @@ function Entrenadores() {
             )
           })}
         </ul>
+        {miembros.length === 0 && (
+          <p className="sub" style={{ margin: 0 }}>
+            Todavía no hay nadie en este equipo. Añade abajo a un entrenador que ya tenga cuenta, o pídele que se registre y aparecerá en "Esperan equipo".
+          </p>
+        )}
       </section>
 
       {otras.length > 0 && (
