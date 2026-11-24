@@ -115,7 +115,7 @@ export function Perfil() {
         </div>
         <div className="perfil-id">
           <strong>{cuenta.nombre}</strong>
-          <span className="sub">@{cuenta.usuario}</span>
+          <span className="sub">{cuenta.email}</span>
           <span className="perfil-equipo">
             {categoria(cuenta.categoria).nombre} {cuenta.equipo} · {cuenta.entidad}
           </span>
@@ -137,9 +137,6 @@ export function Perfil() {
           <legend>Tus datos</legend>
           <Campo etiqueta="Nombre y apellidos" error={err.nombre}>
             <input value={d.nombre} onChange={(e) => set('nombre', e.target.value)} autoComplete="name" />
-          </Campo>
-          <Campo etiqueta="Usuario" error={err.usuario}>
-            <input value={d.usuario} onChange={(e) => set('usuario', e.target.value.toLowerCase())} autoCapitalize="none" spellCheck={false} />
           </Campo>
           <Campo etiqueta="Email" error={err.email}>
             <input type="email" value={d.email} onChange={(e) => set('email', e.target.value)} autoCapitalize="none" />

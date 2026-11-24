@@ -42,7 +42,8 @@ export function formatearTelefono(t: string) {
 export function validarPerfil(d: Omit<DatosRegistro, 'password' | 'aceptaPrivacidad'>): Errores {
   const e: Errores = {}
   if (d.nombre.trim().length < 2) e.nombre = 'Escribe tu nombre.'
-  if (!/^[a-z0-9._]{3,20}$/.test(normalizarUsuario(d.usuario))) e.usuario = 'De 3 a 20 caracteres: letras, números, punto o guion bajo.'
+  // El usuario ya no se pide (se identifica por nombre y apellidos); si llega, se valida.
+  if (d.usuario && !/^[a-z0-9._]{3,20}$/.test(normalizarUsuario(d.usuario))) e.usuario = 'De 3 a 20 caracteres: letras, números, punto o guion bajo.'
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(normalizarEmail(d.email))) e.email = 'Revisa el email.'
   if (!/^\+\d{9,15}$/.test(normalizarTelefono(d.telefono))) e.telefono = 'Revisa el teléfono (9 cifras o con prefijo internacional).'
   if (d.entidad.trim().length < 2) e.entidad = 'Escribe el nombre del club o la escuela.'

@@ -98,6 +98,8 @@ describe('acceso', async () => {
   it('valida usuario, email, teléfono y contraseña', () => {
     const ok = { nombre: 'Ana Ruiz', usuario: 'ana.ruiz', email: 'ana@club.es', telefono: '600 123 456', password: 'balon2026', entidad: 'CD Ejemplo', categoria: 'infantil', equipo: 'A', genero: 'femenino' as const, aceptaPrivacidad: true }
     expect(A.validarRegistro(ok)).toEqual({})
+    // El registro ya no pide usuario: basta con nombre y apellidos.
+    expect(A.validarRegistro({ ...ok, usuario: '' })).toEqual({})
     const mal = A.validarRegistro({ ...ok, usuario: 'a b', email: 'x@', telefono: '123', password: 'corta', aceptaPrivacidad: false, categoria: '' })
     expect(Object.keys(mal).sort()).toEqual(['aceptaPrivacidad', 'categoria', 'email', 'password', 'telefono', 'usuario'])
     expect(A.normalizarTelefono('600 12 34 56')).toBe('+34600123456')

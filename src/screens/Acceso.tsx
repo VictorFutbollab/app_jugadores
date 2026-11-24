@@ -294,7 +294,8 @@ function Registro({ onEntrar }: { onEntrar: () => Promise<void> }) {
         const email = normalizarEmail(d.email)
         setCargando(true)
         try {
-          if (!v.usuario && !(await R.usuarioDisponible(usuario))) v.usuario = 'Ese usuario ya existe.'
+          // Sin campo de usuario: el servidor le asigna un identificador interno.
+          if (usuario && !v.usuario && !(await R.usuarioDisponible(usuario))) v.usuario = 'Ese usuario ya existe.'
           setErr(v)
           if (Object.values(v).some(Boolean)) {
             document.querySelector('.con-error input, .con-error select')?.scrollIntoView({ block: 'center' })
@@ -341,9 +342,6 @@ function Registro({ onEntrar }: { onEntrar: () => Promise<void> }) {
         <legend>Tus datos</legend>
         <Campo etiqueta="Nombre y apellidos" error={err.nombre}>
           <input autoComplete="name" value={d.nombre} onChange={(e) => set('nombre', e.target.value)} />
-        </Campo>
-        <Campo etiqueta="Usuario" error={err.usuario} ayuda="Con él entrarás a las 4 apps de FutbolLab">
-          <input autoComplete="username" autoCapitalize="none" spellCheck={false} value={d.usuario} onChange={(e) => set('usuario', e.target.value.toLowerCase())} />
         </Campo>
         <Campo etiqueta="Email" error={err.email}>
           <input type="email" autoComplete="email" autoCapitalize="none" value={d.email} onChange={(e) => set('email', e.target.value)} />
