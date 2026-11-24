@@ -210,22 +210,47 @@
   color: #6b4e00 !important;
 }
 
-/* Entrada: foto de césped a pantalla completa y tarjeta blanca encima.
-   Foto: "Adidas soccer ball on a grass pitch" (Unsplash, 2017), Wikimedia Commons,
-   CC0 (dominio público). Recortada para dejar solo el césped: sin balón ni marcas.
-   https://commons.wikimedia.org/wiki/File:Adidas_soccer_ball_on_a_grass_pitch_(Unsplash).jpg */
+/* Entrada: foto de un córner a pantalla completa y tarjeta blanca encima.
+   Foto: "Corner flag at Brastad arena" (W.carter, 2019), Wikimedia Commons,
+   CC0 1.0 (dominio público): sin marcas ni personas.
+   https://commons.wikimedia.org/wiki/File:Corner_flag_at_Brastad_arena.jpg */
 [data-estilo='v2'][data-visual='cesped'] .acceso-campo {
   position: fixed;
   inset: 0;
   height: auto;
   border-radius: 0;
   background:
-    linear-gradient(rgba(10, 24, 16, 0.35), rgba(10, 24, 16, 0.15) 45%, rgba(10, 24, 16, 0.45)),
-    url('/acceso-fondo.jpg') center 60% / cover no-repeat,
+    linear-gradient(rgba(10, 24, 16, 0.3), rgba(10, 24, 16, 0.1) 45%, rgba(10, 24, 16, 0.4)),
+    url('/acceso-fondo.jpg') center / cover no-repeat,
     #1f6f3a;
 }
 [data-estilo='v2'][data-visual='cesped'] .acceso-pie {
   color: rgba(255, 255, 255, 0.85);
+}
+/* Que el banderín se vea: en móvil y tablet la tarjeta baja y el banderín
+   asoma arriba; en ordenador la tarjeta va a la derecha y el córner queda libre. */
+@media (max-width: 1023px) {
+  [data-estilo='v2'][data-visual='cesped'] .acceso {
+    justify-content: flex-start;
+  }
+  [data-estilo='v2'][data-visual='cesped'] .acceso .acceso-caja {
+    margin-top: clamp(190px, 30vh, 380px);
+  }
+}
+@media (min-width: 1024px) {
+  [data-estilo='v2'][data-visual='cesped'] .acceso {
+    align-items: flex-end;
+    padding-right: max(48px, 7vw);
+  }
+  [data-estilo='v2'][data-visual='cesped'] .acceso .acceso-caja {
+    margin-top: 0;
+  }
+  [data-estilo='v2'][data-visual='cesped'] .acceso-pie {
+    width: 460px;
+    margin-top: 20px;
+    padding-top: 0;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  }
 }
 [data-estilo='v2'][data-visual='cesped'] .acceso-caja {
   margin-top: 40px;
