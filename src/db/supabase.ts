@@ -47,6 +47,10 @@ export function errorLegible(e: unknown): Error {
   }
   if (err?.code === '23505' && /usuario/i.test(m)) return new Error('Ese usuario ya existe.')
   if (/Failed to fetch|NetworkError|network/i.test(m)) return new Error('Sin conexión con el servidor. Revisa internet y vuelve a intentarlo.')
+  // Límite de correos del servidor (confirmaciones de registro): mensaje claro en vez del inglés técnico.
+  if (/email rate limit|over_email_send_rate_limit/i.test(m) || err?.code === 'over_email_send_rate_limit')
+    return new Error('Se han creado varias cuentas seguidas y el servidor ha pausado el envío de correos. Espera un rato (hasta una hora) y vuelve a intentarlo.')
+  if (/rate limit|too many requests/i.test(m)) return new Error('Demasiados intentos seguidos. Espera unos minutos y vuelve a intentarlo.')
   if (/JWT expired|session.*(missing|not found)|refresh token/i.test(m)) return new Error('Tu sesión ha caducado. Vuelve a entrar.')
   return new Error(m)
 }
