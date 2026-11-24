@@ -328,7 +328,7 @@ async function rpc(nombre: string, args: Record<string, unknown> = {}): Promise<
     case 'inf_tipo_cuenta': {
       const yo = tabla(a, 'profiles').find((p) => p.id === a.sesion)
       if (yo?.role === 'admin') return { data: 'admin', error: null }
-      return { data: tabla(a, 'inf_perfiles').find((p) => p.usuario_id === a.sesion)?.tipo ?? null, error: null }
+      return { data: tabla(a, 'tipos_cuenta').find((p) => p.usuario_id === a.sesion)?.tipo ?? 'familia', error: null }
     }
     case 'inf_rol': {
       const eq = String(args.eq)

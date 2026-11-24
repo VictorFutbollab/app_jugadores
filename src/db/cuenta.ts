@@ -65,11 +65,18 @@ export async function completarCuenta(c: Cuenta): Promise<ResultadoCuenta> {
   }
 
   // 2. Tipo de cuenta, solo la primera vez (después solo lo cambia un admin).
-  const tipoFila = await supabase.from('inf_perfiles').select('tipo').eq('usuario_id', user.id).maybeSingle()
-  if (!tipoFila.error && !tipoFila.data) {
-    // Las cuentas creadas en Jugadores antes de este cambio eran de entrenadores.
-    const tipo = meta.rolPrincipal === 'anotador' ? 'familia' : 'manager'
-    await supabase.from('inf_perfiles').insert({ usuario_id: user.id, tipo })
+  // El servidor lo lee de `tipos_cuenta` (inf_tipo_cuenta → tipo_cuenta()); `inf_perfiles`
+  // tiene las mismas columnas pero no da permiso a los usuarios: se usa solo si la otra no existe.
+  for (const tablaTipos of ['tipos_cuenta', 'inf_perfiles']) {
+    const tipoFila = await supabase.from(tablaTipos).select('tipo').eq('usuario_id', user.id).maybeSingle()
+    if (tipoFila.error) continue
+    if (!tipoFila.data) {
+      // Las cuentas creadas en Jugadores antes de este cambio eran de entrenadores.
+      const tipo = meta.rolPrincipal === 'anotador' ? 'familia' : 'manager'
+      const ins = await supabase.from(tablaTipos).insert({ usuario_id: user.id, tipo })
+      if (ins.error) console.warn('No se ha podido guardar el tipo de cuenta', ins.error.message)
+    }
+    break
   }
 
   // 3. Código de equipo pendiente.
