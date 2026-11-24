@@ -9,8 +9,11 @@ import { crearClienteLocal } from './local'
  * Lo que cada usuario puede hacer lo deciden las políticas RLS de la base de datos.
  * La clave service_role NUNCA debe ir en la app.
  */
-const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
-const clave = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+// Limpia caracteres invisibles (BOM, espacios, saltos de línea) que se cuelan al copiar
+// las claves: en una cabecera HTTP rompen todas las peticiones a Supabase.
+const limpio = (v: unknown) => (typeof v === 'string' ? v.replace(/[^\x21-\x7e]/g, '') : undefined) || undefined
+const url = limpio(import.meta.env.VITE_SUPABASE_URL)
+const clave = limpio(import.meta.env.VITE_SUPABASE_ANON_KEY)
 
 /**
  * Modo local: en `npm run dev` las cuentas y los datos se guardan en este navegador

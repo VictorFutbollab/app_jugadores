@@ -208,6 +208,8 @@ function Entrar({ onEntrar, irRegistro, irAdmin }: { onEntrar: () => Promise<voi
             return setError(errorLegible(r.error).message)
           }
           await onEntrar()
+        } catch (e) {
+          setError(errorLegible(e).message || 'No se ha podido entrar. Inténtalo de nuevo.')
         } finally {
           setCargando(false)
         }
@@ -327,6 +329,9 @@ function Registro({ onEntrar }: { onEntrar: () => Promise<void> }) {
           if (MODO_LOCAL && r.data.session && (await supabase.from('equipos').select('id')).data?.length === 0) await R.cargarEjemplo()
           if (r.data.session) await onEntrar()
           else setRevisarEmail(true) // confirmación de email activada en Supabase
+        } catch (e) {
+          // Nunca un botón que "no hace nada": cualquier fallo se explica junto al botón.
+          setGeneral(errorLegible(e).message || 'No se ha podido crear la cuenta. Inténtalo de nuevo.')
         } finally {
           setCargando(false)
         }
