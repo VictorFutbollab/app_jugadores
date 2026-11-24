@@ -12,6 +12,8 @@ interface UsuarioLocal {
   id: string
   email: string
   password: string
+  /** Metadatos del registro (nombre, rolPrincipal, telefono, codigo_equipo…). */
+  meta?: Record<string, unknown>
 }
 interface Almacen {
   usuarios: UsuarioLocal[]
@@ -43,7 +45,7 @@ type Evento = 'SIGNED_IN' | 'SIGNED_OUT' | 'USER_UPDATED'
 const oyentes = new Set<(e: Evento, s: unknown) => void>()
 const avisar = (e: Evento, s: unknown) => setTimeout(() => oyentes.forEach((f) => f(e, s)), 0)
 
-const sesionDe = (u: UsuarioLocal) => ({ access_token: 'local', user: { id: u.id, email: u.email } })
+const sesionDe = (u: UsuarioLocal) => ({ access_token: 'local', user: { id: u.id, email: u.email, user_metadata: u.meta ?? {} } })
 function usuarioConSesion(a = leer()) {
   return a.usuarios.find((u) => u.id === a.sesion) ?? null
 }
@@ -70,8 +72,8 @@ const auth = {
     const a = leer()
     email = email.toLowerCase()
     if (a.usuarios.some((x) => x.email === email)) return { data: { session: null, user: null }, error: err('User already registered') }
-    const u: UsuarioLocal = { id: crypto.randomUUID(), email, password }
     const m = options?.data ?? {}
+    const u: UsuarioLocal = { id: crypto.randomUUID(), email, password, meta: { ...m } }
     const perfiles = tabla(a, 'profiles')
     let usuario = String(m.usuario ?? '').toLowerCase()
     if (!/^[a-z0-9._]{3,20}$/.test(usuario) || perfiles.some((p) => p.usuario === usuario)) usuario = 'u' + u.id.replace(/-/g, '').slice(0, 12)
@@ -105,7 +107,10 @@ const auth = {
     avisar('SIGNED_OUT', null)
     return { error: null }
   },
-  async updateUser(c: { email?: string; password?: string }) {
+  async resetPasswordForEmail() {
+    return { data: null, error: err('En el modo local no se envían correos. Crea otra cuenta o borra los datos del navegador.') }
+  },
+  async updateUser(c: { email?: string; password?: string; data?: Record<string, unknown> }) {
     const a = leer()
     const u = usuarioConSesion(a)
     if (!u) return { data: { user: null }, error: err('Auth session missing!') }
@@ -117,6 +122,7 @@ const auth = {
       if (p) p.email = email
     }
     if (c.password) u.password = c.password
+    if (c.data) u.meta = { ...(u.meta ?? {}), ...c.data }
     escribir(a)
     avisar('USER_UPDATED', sesionDe(u))
     return { data: { user: sesionDe(u).user }, error: null }
@@ -131,6 +137,19 @@ const auth = {
 
 type Filtro = (f: Fila) => boolean
 const comoLike = (patron: string) => new RegExp('^' + patron.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.') + '$')
+
+/**
+ * Lo mínimo de las políticas RLS de Supabase para que el modo local se comporte igual:
+ * los datos de un equipo solo los ve quien es del cuerpo técnico (`miembros`) o un admin.
+ * Familias y delegados no ven esas tablas: usan inf_plantilla_anotador.
+ */
+const TABLAS_DE_EQUIPO = new Set(['equipos', 'miembros', 'jugadores', 'eventos', 'estados', 'evaluaciones', 'pruebas', 'notas', 'asistencias', 'participaciones', 'cargas'])
+function visible(a: Almacen, t: string, f: Fila) {
+  if (!TABLAS_DE_EQUIPO.has(t)) return true
+  if (tabla(a, 'profiles').find((p) => p.id === a.sesion)?.role === 'admin') return true
+  const mios = new Set(tabla(a, 'miembros').filter((m) => m.usuario_id === a.sesion).map((m) => m.equipo_id))
+  return mios.has(t === 'equipos' ? f.id : f.equipo_id)
+}
 
 /** Las filas de un jugador heredan su equipo (lo que en el servidor hace un trigger). */
 function conEquipo(a: Almacen, t: string, f: Fila): Fila {
@@ -159,6 +178,11 @@ class Consulta implements PromiseLike<{ data: unknown; error: unknown }> {
   select() {
     if (this.op === 'select') return this
     this.devolver = true
+    return this
+  }
+  insert(filas: Fila | Fila[]) {
+    this.op = 'insert'
+    this.payload = filas
     return this
   }
   upsert(filas: Fila | Fila[], o?: { onConflict?: string }) {
@@ -209,13 +233,19 @@ class Consulta implements PromiseLike<{ data: unknown; error: unknown }> {
     const pasa = (f: Fila) => this.filtros.every((p) => p(f))
     switch (this.op) {
       case 'select': {
-        let r = filas.filter(pasa)
+        let r = filas.filter(pasa).filter((f) => visible(a, this.t, f))
         if (this.ordenar) {
           const { col, asc } = this.ordenar
           r = [...r].sort((x, y) => (String(x[col]) < String(y[col]) ? -1 : String(x[col]) > String(y[col]) ? 1 : 0) * (asc ? 1 : -1))
         }
         r = r.slice(this.desde, Math.min(this.hasta + 1, this.desde + this.maximo))
         return { data: this.una ? (r[0] ?? null) : r, error: null }
+      }
+      case 'insert': {
+        const nuevas = (Array.isArray(this.payload) ? this.payload : [this.payload!]).map((f) => ({ creado_en: ahora(), ...conEquipo(a, this.t, f) }))
+        filas.push(...nuevas)
+        escribir(a)
+        return { data: this.devolver ? nuevas : null, error: null }
       }
       case 'upsert': {
         const nuevas = (Array.isArray(this.payload) ? this.payload : [this.payload!]).map((f) => conEquipo(a, this.t, f))
@@ -261,6 +291,19 @@ class Consulta implements PromiseLike<{ data: unknown; error: unknown }> {
 
 // ───────────── Funciones de servidor ─────────────
 
+/** SHA-256 en hexadecimal (los códigos de equipo se guardan así, igual que en Supabase). */
+async function sha256(texto: string) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texto))
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** Solo para pruebas en local: crea un código de equipo (en Supabase los crea Informes). */
+export async function crearCodigoLocal(equipoId: string, codigo: string, rol: 'familia' | 'anotador' = 'familia') {
+  const a = leer()
+  tabla(a, 'inf_invitaciones').push({ codigo_hash: await sha256(codigo.toUpperCase()), equipo_id: equipoId, rol, usos: 0, usos_max: 50, revocada: false, creado_en: ahora() })
+  escribir(a)
+}
+
 async function rpc(nombre: string, args: Record<string, unknown> = {}): Promise<{ data: unknown; error: unknown }> {
   const a = leer()
   const jugador = () => tabla(a, 'jugadores').find((f) => f.id === args.jid)
@@ -280,6 +323,42 @@ async function rpc(nombre: string, args: Record<string, unknown> = {}): Promise<
       if (j) j.data = { ...(j.data as Fila), consentimiento: args.c, fechaNacimiento: args.fecha_nacimiento || null }
       escribir(a)
       return { data: null, error: null }
+    }
+    // ── Funciones de Informes (mismo comportamiento que en Supabase, en pequeño) ──
+    case 'inf_tipo_cuenta': {
+      const yo = tabla(a, 'profiles').find((p) => p.id === a.sesion)
+      if (yo?.role === 'admin') return { data: 'admin', error: null }
+      return { data: tabla(a, 'inf_perfiles').find((p) => p.usuario_id === a.sesion)?.tipo ?? null, error: null }
+    }
+    case 'inf_rol': {
+      const eq = String(args.eq)
+      const m = tabla(a, 'miembros').find((x) => x.equipo_id === eq && x.usuario_id === a.sesion && ['entrenador_principal', 'ayudante'].includes(String(x.rol)))
+      if (m) return { data: 'entrenador', error: null }
+      return { data: tabla(a, 'inf_miembros').find((x) => x.equipo_id === eq && x.usuario_id === a.sesion)?.rol ?? null, error: null }
+    }
+    case 'inf_unirse': {
+      const codigo = String(args.codigo ?? '').toUpperCase()
+      const hash = await sha256(codigo)
+      const inv = tabla(a, 'inf_invitaciones').find((i) => i.codigo_hash === hash && !i.revocada && (!i.expira_en || String(i.expira_en) > ahora()))
+      if (!inv || (inv.usos_max != null && Number(inv.usos ?? 0) >= Number(inv.usos_max))) return { data: null, error: err('Código no válido o caducado. Pídele uno nuevo al entrenador.') }
+      const miembros = tabla(a, 'inf_miembros')
+      if (!miembros.some((x) => x.equipo_id === inv.equipo_id && x.usuario_id === a.sesion)) miembros.push({ equipo_id: inv.equipo_id, usuario_id: a.sesion, rol: inv.rol ?? 'familia', creado_en: ahora() })
+      inv.usos = Number(inv.usos ?? 0) + 1
+      escribir(a)
+      return { data: inv.equipo_id, error: null }
+    }
+    case 'inf_plantilla_anotador': {
+      const eq = String(args.eq)
+      const puede = tabla(a, 'inf_miembros').some((x) => x.equipo_id === eq && x.usuario_id === a.sesion) || tabla(a, 'miembros').some((x) => x.equipo_id === eq && x.usuario_id === a.sesion)
+      if (!puede) return { data: [], error: null }
+      const filas = tabla(a, 'jugadores')
+        .filter((j) => j.equipo_id === eq)
+        .map((j) => {
+          const d = (j.data ?? {}) as { dorsal?: number; nombre?: string; apellidos?: string; posiciones?: string[] }
+          const iniciales = `${(d.nombre ?? '').trim().charAt(0)}${(d.apellidos ?? '').trim().charAt(0)}`.toUpperCase()
+          return { id: j.id, dorsal: d.dorsal ?? 0, iniciales, posiciones: d.posiciones ?? [] }
+        })
+      return { data: filas, error: null }
     }
     case 'admin_verificar_pin': {
       // En local el PIN está en .env.local (VITE_ADMIN_PIN_LOCAL); en Supabase lo comprueba la base de datos.

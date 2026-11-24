@@ -6,6 +6,7 @@ import { href, ir, useRuta, type Ruta } from './state/router'
 import { Inicio } from './screens/Inicio'
 import { Plantilla } from './screens/Plantilla'
 import { APP_NAME_CORTO, FLAGS } from './config'
+import { PanelFamilia, UnirseConCodigo } from './screens/Familia'
 
 // Carga diferida: estas pantallas (y los gráficos que usan) solo se descargan al abrirlas.
 const Jugador = lazy(() => import('./screens/Jugador').then((m) => ({ default: m.Jugador })))
@@ -47,8 +48,9 @@ const TABS_4: Tab[] = [TABS[0], TABS[1], { r: { nombre: 'evaluar' }, nombre: 'Ev
 
 /** Barra superior común a las apps FutbolLab: marca a la izquierda, equipo y entrenador a la derecha. */
 function BarraSuperior({ enAdmin }: { enAdmin: boolean }) {
-  const { cuenta, ds, verComo } = useApp()
+  const { cuenta, ds, verComo, equiposInf } = useApp()
   const eq = ds.equipos[0]
+  const inf = ds.equipos.length === 0 ? equiposInf[0] : undefined
   return (
     <header className="appbar">
       <a href={href({ nombre: enAdmin ? 'admin' : 'inicio' })} className="appbar-marca" aria-label="Inicio">
@@ -56,8 +58,8 @@ function BarraSuperior({ enAdmin }: { enAdmin: boolean }) {
       </a>
       <a href={enAdmin ? undefined : href({ nombre: 'perfil' })} className="appbar-usuario">
         <span className="appbar-equipo">
-          <strong>{eq?.nombre ?? cuenta.nombre}</strong>
-          <span>{verComo === 'ayudante' ? 'Viendo como ayudante' : (eq?.entidad ?? 'Sin equipo asignado')}</span>
+          <strong>{eq?.nombre ?? (inf ? (inf.nombre ?? 'Tu equipo') : cuenta.nombre)}</strong>
+          <span>{verComo === 'ayudante' ? 'Viendo como ayudante' : (eq?.entidad ?? (inf ? (inf.rol === 'anotador' ? 'Delegado' : 'Familia') : 'Sin equipo asignado'))}</span>
         </span>
         {cuenta.foto ? <img src={cuenta.foto} alt="" className="appbar-foto" /> : <span className="appbar-foto ini">{cuenta.nombre.slice(0, 1).toUpperCase()}</span>}
       </a>
@@ -65,22 +67,54 @@ function BarraSuperior({ enAdmin }: { enAdmin: boolean }) {
   )
 }
 
-/** Cuenta recién creada: hasta que un admin la añade a un equipo, el servidor no le da ningún dato. */
+/**
+ * Sin equipo de entrenador. Tres casos:
+ *  - delegado o familia de algún equipo → vista de solo lectura (dorsal e iniciales);
+ *  - familia sin equipo → puede unirse con el código del entrenador;
+ *  - entrenador sin equipo → un admin (o FutbolLab Informes) tiene que darle uno.
+ */
 function SinEquipo() {
-  const { cuenta, cerrarSesion } = useApp()
+  const r = useRuta()
+  const { cuenta, cerrarSesion, equiposInf, tipoCuenta } = useApp()
+  let cuerpo
+  if (r.nombre === 'perfil') {
+    cuerpo = (
+      <Suspense fallback={null}>
+        <Perfil />
+      </Suspense>
+    )
+  } else if (equiposInf.length > 0) {
+    cuerpo = <PanelFamilia />
+  } else {
+    cuerpo = (
+      <>
+        <section className="bloque" style={{ marginTop: 24 }}>
+          <h2>Hola, {cuenta.nombre.split(' ')[0] || cuenta.usuario}</h2>
+          {tipoCuenta === 'familia' ? (
+            <p>Tu cuenta FutbolLab está creada. Para ver tu equipo, escribe el código que te ha dado el entrenador.</p>
+          ) : (
+            <p>
+              Tu cuenta FutbolLab está creada. Crea tu equipo en FutbolLab Informes o pide a un administrador del club que te añada; cuando lo haga, verás aquí a tus jugadores. Te registraste con <strong>{cuenta.email}</strong>.
+            </p>
+          )}
+        </section>
+        <section className="bloque">
+          <h2>{tipoCuenta === 'familia' ? 'Unirme a un equipo' : '¿Tienes un código de equipo?'}</h2>
+          <UnirseConCodigo />
+        </section>
+      </>
+    )
+  }
   return (
     <div className="app">
       <BarraSuperior enAdmin={false} />
       <main>
-        <section className="bloque" style={{ marginTop: 24 }}>
-          <h2>Hola, {cuenta.nombre.split(' ')[0] || cuenta.usuario}</h2>
-          <p>
-            Tu cuenta está creada. Un administrador de tu club tiene que añadirte a tu equipo; cuando lo haga, verás aquí a tus jugadores. Si tarda, avísale de que te has registrado con <strong>{cuenta.email}</strong>.
-          </p>
-        </section>
-        <button className="btn peligro ancho" onClick={cerrarSesion}>
-          <Icon n="salir" /> Cerrar sesión
-        </button>
+        {cuerpo}
+        {r.nombre !== 'perfil' && (
+          <button className="btn peligro ancho" onClick={cerrarSesion}>
+            <Icon n="salir" /> Cerrar sesión
+          </button>
+        )}
       </main>
     </div>
   )

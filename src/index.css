@@ -2447,3 +2447,69 @@ button.admin-salir {
     width: auto;
   }
 }
+
+/* ═════ Cuenta FutbolLab compartida (registro como Informes, familias y delegados) ═════ */
+.aviso-info {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: var(--r-card);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  display: grid;
+  gap: 6px;
+}
+.aviso-info p {
+  margin: 0;
+}
+.tipo-cuenta button {
+  white-space: normal;
+  line-height: 1.2;
+  padding: 6px 8px;
+}
+.form .olvido {
+  justify-self: end;
+  margin-top: -6px;
+}
+.codigo-equipo {
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.familia-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.familia-cab h2 {
+  margin: 0;
+}
+.familia-plantilla {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 10px;
+}
+.familia-plantilla li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border-radius: var(--r-input);
+  background: var(--surface-2);
+  text-align: center;
+}
+.familia-plantilla strong {
+  font-family: 'Bricolage Grotesque Variable', 'Montserrat', system-ui, sans-serif;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+}
+.familia-plantilla .sub {
+  font-size: 0.75rem;
+}
+.form.unirse {
+  margin-top: 0;
+}

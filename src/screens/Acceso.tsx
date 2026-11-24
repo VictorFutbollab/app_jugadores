@@ -2,13 +2,15 @@ import { useState, type ReactNode } from 'react'
 import { Logo } from '../ui/Logo'
 import { Icon } from '../ui/Icon'
 import { CATEGORIAS } from '../data/categorias'
-import { normalizarEmail, normalizarTelefono, normalizarUsuario, validarRegistro, type DatosRegistro, type Errores } from '../auth/auth'
+import { normalizarEmail, normalizarTelefono, validarRegistro, type DatosRegistro, type Errores, type ErroresCuenta, type NuevaCuenta } from '../auth/auth'
 import * as R from '../db/remote'
 import { errorLegible, MODO_LOCAL, supabase } from '../db/supabase'
+import { esErrorDeRed } from '../db/offline'
+import { generarUsuario, normalizarCodigo, type RolPrincipal } from '../db/cuenta'
 import type { Genero } from '../model/types'
 import { apuntarFallo, borrarFallos, minutosBloqueo } from '../auth/pinAdmin'
 
-type Modo = 'entrar' | 'registro' | 'admin'
+type Modo = 'entrar' | 'registro' | 'admin' | 'olvido'
 
 /**
  * Solo en localhost (npm run dev): el servidor de desarrollo crea o confirma la cuenta
@@ -57,7 +59,7 @@ export function Acceso({ onEntrar, error }: { onEntrar: (panel: Panel) => Promis
           <p className="acceso-lema">Conoce a cada jugador. Mide su evolución. Decide con datos.</p>
         </div>
         <div className="segmentado" role="tablist">
-          <button role="tab" aria-selected={modo === 'entrar'} className={modo === 'entrar' ? 'on' : ''} onClick={() => setModo('entrar')}>
+          <button role="tab" aria-selected={modo === 'entrar' || modo === 'olvido'} className={modo === 'entrar' || modo === 'olvido' ? 'on' : ''} onClick={() => setModo('entrar')}>
             Entrar
           </button>
           <button role="tab" aria-selected={modo === 'registro'} className={modo === 'registro' ? 'on' : ''} onClick={() => setModo('registro')}>
@@ -70,7 +72,9 @@ export function Acceso({ onEntrar, error }: { onEntrar: (panel: Panel) => Promis
           </p>
         )}
         {modo === 'entrar' ? (
-          <Entrar onEntrar={() => onEntrar('usuario')} irRegistro={() => setModo('registro')} irAdmin={() => setModo('admin')} />
+          <Entrar onEntrar={() => onEntrar('usuario')} irRegistro={() => setModo('registro')} irAdmin={() => setModo('admin')} irOlvido={() => setModo('olvido')} />
+        ) : modo === 'olvido' ? (
+          <Olvido volver={() => setModo('entrar')} />
         ) : (
           <Registro onEntrar={() => onEntrar('usuario')} />
         )}
@@ -182,7 +186,16 @@ function EntrarAdmin({ onEntrar, volver }: { onEntrar: () => Promise<void>; volv
   )
 }
 
-function Entrar({ onEntrar, irRegistro, irAdmin }: { onEntrar: () => Promise<void>; irRegistro: () => void; irAdmin: () => void }) {
+/** Mensajes de error al entrar, en lenguaje sencillo (los mismos que Informes). */
+function errorAlEntrar(e: unknown): string {
+  const m = (e as { message?: string } | null)?.message ?? String(e)
+  if (/not confirmed/i.test(m)) return 'Confirma tu cuenta desde el correo que te enviamos.'
+  if (/invalid login|invalid credentials/i.test(m)) return 'Email o contraseña incorrectos.'
+  if (esErrorDeRed(e) || /Failed to fetch|NetworkError|Sin conexión/i.test(m)) return 'Sin cobertura. Inténtalo con conexión.'
+  return errorLegible(e).message || 'No se ha podido entrar. Inténtalo de nuevo.'
+}
+
+function Entrar({ onEntrar, irRegistro, irAdmin, irOlvido }: { onEntrar: () => Promise<void>; irRegistro: () => void; irAdmin: () => void; irOlvido: () => void }) {
   const [email, setEmail] = useState('')
   const [pw, setPw] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -196,20 +209,16 @@ function Entrar({ onEntrar, irRegistro, irAdmin }: { onEntrar: () => Promise<voi
         setCargando(true)
         try {
           let r = await supabase.auth.signInWithPassword({ email: normalizarEmail(email), password: pw })
-          // En localhost: una cuenta que se quedó sin confirmar se confirma sola y se vuelve a intentar.
+          // Solo en localhost con Supabase: una cuenta que se quedó sin confirmar se confirma sola.
           if (r.error && /not confirmed/i.test(r.error.message)) {
             const local = await sinCorreoEnLocal('confirmar', { email: normalizarEmail(email) })
             if (local?.ok) r = await supabase.auth.signInWithPassword({ email: normalizarEmail(email), password: pw })
           }
-          if (r.error) {
-            // mismo mensaje si no existe o si la contraseña no coincide (no revela qué cuentas existen)
-            if (/not confirmed/i.test(r.error.message)) return setError('Confirma tu email: te enviamos un enlace al registrarte.')
-            if (/invalid login|invalid credentials/i.test(r.error.message)) return setError('Email o contraseña incorrectos.')
-            return setError(errorLegible(r.error).message)
-          }
+          // Mismo mensaje si no existe o si la contraseña no coincide (no revela qué cuentas existen).
+          if (r.error) return setError(errorAlEntrar(r.error))
           await onEntrar()
         } catch (e) {
-          setError(errorLegible(e).message || 'No se ha podido entrar. Inténtalo de nuevo.')
+          setError(errorAlEntrar(e))
         } finally {
           setCargando(false)
         }
@@ -221,6 +230,9 @@ function Entrar({ onEntrar, irRegistro, irAdmin }: { onEntrar: () => Promise<voi
       <Campo etiqueta="Contraseña">
         <input type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} required />
       </Campo>
+      <button type="button" className="enlace pequeno olvido" onClick={irOlvido}>
+        ¿Olvidaste la contraseña?
+      </button>
       {error && (
         <p className="error" role="alert">
           {error}
@@ -245,39 +257,146 @@ function Entrar({ onEntrar, irRegistro, irAdmin }: { onEntrar: () => Promise<voi
   )
 }
 
-const VACIO: DatosRegistro = {
-  nombre: '',
-  usuario: '',
-  email: '',
-  telefono: '',
-  password: '',
-  entidad: '',
-  categoria: '',
-  equipo: '',
-  genero: 'masculino',
-  aceptaPrivacidad: false,
+/** "¿Olvidaste la contraseña?": envía el enlace para poner una nueva (vuelve a esta app). */
+function Olvido({ volver }: { volver: () => void }) {
+  const [email, setEmail] = useState('')
+  const [estado, setEstado] = useState<'' | 'enviando' | 'enviado'>('')
+  const [error, setError] = useState<string | null>(null)
+  if (estado === 'enviado') {
+    return (
+      <div className="aviso-info" role="status">
+        <strong>Revisa tu correo</strong>
+        <p>
+          Si hay una cuenta con <strong>{normalizarEmail(email)}</strong>, te hemos enviado un enlace para poner una contraseña nueva. Ábrelo en este mismo dispositivo.
+        </p>
+        <button type="button" className="btn ancho" onClick={volver}>
+          Volver a entrar
+        </button>
+      </div>
+    )
+  }
+  return (
+    <form
+      className="form"
+      onSubmit={async (e) => {
+        e.preventDefault()
+        setError(null)
+        setEstado('enviando')
+        try {
+          const r = await supabase.auth.resetPasswordForEmail(normalizarEmail(email), { redirectTo: location.origin })
+          if (r.error) {
+            setEstado('')
+            return setError(errorAlEntrar(r.error))
+          }
+          setEstado('enviado')
+        } catch (e) {
+          setEstado('')
+          setError(errorAlEntrar(e))
+        }
+      }}
+    >
+      <p className="sub" style={{ margin: 0 }}>
+        Escribe el email de tu cuenta FutbolLab y te enviaremos un enlace para poner una contraseña nueva.
+      </p>
+      <Campo etiqueta="Email">
+        <input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required autoCapitalize="none" />
+      </Campo>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      <button className="btn primario grande" type="submit" disabled={estado === 'enviando'}>
+        {estado === 'enviando' ? 'Enviando…' : 'Enviar enlace'}
+      </button>
+      <p className="acceso-alt">
+        <button type="button" className="enlace" onClick={volver}>
+          Volver a entrar
+        </button>
+      </p>
+    </form>
+  )
 }
 
+/** Pantalla a la que se llega desde el enlace del correo: elegir la contraseña nueva. */
+export function NuevaContrasena({ onHecho }: { onHecho: () => Promise<void> }) {
+  const [pw, setPw] = useState('')
+  const [pw2, setPw2] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [cargando, setCargando] = useState(false)
+  return (
+    <div className="acceso">
+      <div className="acceso-campo" aria-hidden />
+      <div className="acceso-caja">
+        <div className="acceso-marca">
+          <Logo alto={34} />
+          <p className="acceso-app">Nueva contraseña</p>
+          <p className="acceso-lema">Elige la contraseña de tu cuenta FutbolLab. Vale para Jugadores e Informes.</p>
+        </div>
+        <form
+          className="form"
+          onSubmit={async (e) => {
+            e.preventDefault()
+            setError(null)
+            if (pw.length < 8 || !/[a-zA-Z]/.test(pw) || !/\d/.test(pw)) return setError('Mínimo 8 caracteres, con letras y números.')
+            if (pw !== pw2) return setError('Las dos contraseñas no coinciden.')
+            setCargando(true)
+            try {
+              const r = await supabase.auth.updateUser({ password: pw })
+              if (r.error) return setError(errorAlEntrar(r.error))
+              await onHecho()
+            } catch (e) {
+              setError(errorAlEntrar(e))
+            } finally {
+              setCargando(false)
+            }
+          }}
+        >
+          <Campo etiqueta="Contraseña nueva" ayuda="Mínimo 8 caracteres, con letras y números">
+            <input type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} required />
+          </Campo>
+          <Campo etiqueta="Repite la contraseña">
+            <input type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} required />
+          </Campo>
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          <button className="btn primario grande" type="submit" disabled={cargando}>
+            {cargando ? 'Guardando…' : 'Guardar y entrar'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+const VACIO: NuevaCuenta = { tipo: 'entrenador', nombre: '', apellidos: '', email: '', password: '', telefono: '', codigo: '', acepta: false }
+
+/**
+ * Crear cuenta, igual que FutbolLab Informes (una sola cuenta para las dos apps):
+ * entrenador (manager) o familiar/ayudante (con el código del equipo).
+ */
 function Registro({ onEntrar }: { onEntrar: () => Promise<void> }) {
-  const [d, setD] = useState<DatosRegistro>(VACIO)
-  const [err, setErr] = useState<Errores>({})
+  const [d, setD] = useState<NuevaCuenta>(VACIO)
+  const [err, setErr] = useState<ErroresCuenta>({})
   const [cargando, setCargando] = useState(false)
   const [verPw, setVerPw] = useState(false)
   const [general, setGeneral] = useState<string | null>(null)
   const [revisarEmail, setRevisarEmail] = useState(false)
-  const set = <K extends keyof DatosRegistro>(k: K, v: DatosRegistro[K]) => {
+  const set = <K extends keyof NuevaCuenta>(k: K, v: NuevaCuenta[K]) => {
     setD((x) => ({ ...x, [k]: v }))
     if (err[k]) setErr((e) => ({ ...e, [k]: undefined }))
   }
+  const familia = d.tipo === 'familia'
 
   if (revisarEmail) {
     return (
-      <div className="bloque" role="status" style={{ marginTop: 16 }}>
-        <h2>Revisa tu email</h2>
-        <p>
-          Te hemos enviado un enlace a <strong>{normalizarEmail(d.email)}</strong> para confirmar la cuenta. Después podrás entrar.
-        </p>
-        <p className="sub">Si ya tenías una cuenta con ese email, entra con ella o recupera la contraseña.</p>
+      <div className="aviso-info" role="status">
+        <strong>Confirma tu cuenta</strong>
+        <p>Te hemos enviado un correo para confirmar la cuenta. Ábrelo y después entra con tu email y contraseña.</p>
+        <p className="sub">Enviado a {normalizarEmail(d.email)}.</p>
       </div>
     )
   }
@@ -290,64 +409,76 @@ function Registro({ onEntrar }: { onEntrar: () => Promise<void> }) {
         e.preventDefault()
         setGeneral(null)
         const v = validarRegistro(d)
-        const usuario = normalizarUsuario(d.usuario)
+        setErr(v)
+        if (Object.values(v).some(Boolean)) {
+          document.querySelector('.con-error input, .con-error select')?.scrollIntoView({ block: 'center' })
+          return
+        }
         const email = normalizarEmail(d.email)
+        // Los mismos metadatos que Informes. El rol de la app NO se envía: el servidor
+        // pone siempre 'player', y el tipo de cuenta se guarda al entrar por primera vez.
+        const datos = {
+          nombre: `${d.nombre.trim()} ${d.apellidos.trim()}`,
+          rolPrincipal: (familia ? 'anotador' : 'entrenador') as RolPrincipal,
+          telefono: !familia && d.telefono.trim() ? normalizarTelefono(d.telefono) : '',
+          usuario: generarUsuario(email),
+          acepta_privacidad: true,
+          codigo_equipo: familia ? normalizarCodigo(d.codigo) : null,
+        }
         setCargando(true)
         try {
-          // Sin campo de usuario: el servidor le asigna un identificador interno.
-          if (usuario && !v.usuario && !(await R.usuarioDisponible(usuario))) v.usuario = 'Ese usuario ya existe.'
-          setErr(v)
-          if (Object.values(v).some(Boolean)) {
-            document.querySelector('.con-error input, .con-error select')?.scrollIntoView({ block: 'center' })
-            return
-          }
-          // El rol NO se envía: el servidor asigna siempre 'player' a las cuentas nuevas.
-          const datos = {
-            nombre: d.nombre.trim(),
-            usuario,
-            telefono: normalizarTelefono(d.telefono),
-            entidad: d.entidad.trim(),
-            categoria: d.categoria,
-            equipo: d.equipo.trim(),
-            genero: d.genero,
-            acepta_privacidad: d.aceptaPrivacidad,
-          }
-          // En localhost: la cuenta se crea ya confirmada (no llega el correo) y se entra directamente.
+          // Solo en localhost con Supabase: la cuenta se crea ya confirmada.
           const local = await sinCorreoEnLocal('registro', { email, password: d.password, data: datos })
           if (local) {
             if (!local.ok) return /email/i.test(local.error ?? '') ? setErr({ email: local.error }) : setGeneral(local.error ?? 'No se ha podido crear la cuenta.')
             const e2 = await supabase.auth.signInWithPassword({ email, password: d.password })
-            if (e2.error) return setGeneral(errorLegible(e2.error).message)
+            if (e2.error) return setGeneral(errorAlEntrar(e2.error))
             return await onEntrar()
           }
           const r = await supabase.auth.signUp({ email, password: d.password, options: { emailRedirectTo: location.origin, data: datos } })
           if (r.error) {
-            if (/already registered|already exists/i.test(r.error.message)) return setErr({ email: 'Ya hay una cuenta con ese email.' })
+            if (/already registered|already exists/i.test(r.error.message)) return setErr({ email: 'Ya hay una cuenta FutbolLab con ese email. Entra con ella (vale para Jugadores e Informes).' })
             if (/password/i.test(r.error.message)) return setErr({ password: 'La contraseña no cumple los requisitos de seguridad.' })
             return setGeneral(errorLegible(r.error).message)
           }
           // Modo local: la primera cuenta (admin) arranca con la plantilla de ejemplo para tener algo que ver.
-          if (MODO_LOCAL && r.data.session && (await supabase.from('equipos').select('id')).data?.length === 0) await R.cargarEjemplo()
+          if (MODO_LOCAL && !familia && r.data.session && (await supabase.from('equipos').select('id')).data?.length === 0) await R.cargarEjemplo()
           if (r.data.session) await onEntrar()
-          else setRevisarEmail(true) // confirmación de email activada en Supabase
+          else setRevisarEmail(true) // Supabase pide confirmar el correo
         } catch (e) {
           // Nunca un botón que "no hace nada": cualquier fallo se explica junto al botón.
-          setGeneral(errorLegible(e).message || 'No se ha podido crear la cuenta. Inténtalo de nuevo.')
+          setGeneral(errorAlEntrar(e))
         } finally {
           setCargando(false)
         }
       }}
     >
+      <div className="segmentado tipo-cuenta" role="radiogroup" aria-label="Tipo de cuenta">
+        <button type="button" role="radio" aria-checked={!familia} className={!familia ? 'on' : ''} onClick={() => set('tipo', 'entrenador')}>
+          Soy entrenador
+        </button>
+        <button type="button" role="radio" aria-checked={familia} className={familia ? 'on' : ''} onClick={() => set('tipo', 'familia')}>
+          Soy familiar o ayudante
+        </button>
+      </div>
+      <p className="sub" style={{ margin: 0 }}>
+        {familia
+          ? 'Con el código que te ha dado el entrenador entrarás en su equipo. Solo podrás ver, no cambiar.'
+          : 'Crea y gestiona tus equipos. La misma cuenta sirve para FutbolLab Jugadores e Informes.'}
+      </p>
+
       <fieldset className="grupo">
         <legend>Tus datos</legend>
-        <Campo etiqueta="Nombre y apellidos" error={err.nombre}>
-          <input autoComplete="name" value={d.nombre} onChange={(e) => set('nombre', e.target.value)} />
-        </Campo>
+        <div className="fila-campos mitad">
+          <Campo etiqueta="Nombre" error={err.nombre}>
+            <input autoComplete="given-name" value={d.nombre} onChange={(e) => set('nombre', e.target.value)} />
+          </Campo>
+          <Campo etiqueta="Apellidos" error={err.apellidos}>
+            <input autoComplete="family-name" value={d.apellidos} onChange={(e) => set('apellidos', e.target.value)} />
+          </Campo>
+        </div>
         <Campo etiqueta="Email" error={err.email}>
           <input type="email" autoComplete="email" autoCapitalize="none" value={d.email} onChange={(e) => set('email', e.target.value)} />
-        </Campo>
-        <Campo etiqueta="Teléfono" error={err.telefono}>
-          <input type="tel" autoComplete="tel" inputMode="tel" placeholder="600 123 456" value={d.telefono} onChange={(e) => set('telefono', e.target.value)} />
         </Campo>
         <Campo etiqueta="Contraseña" error={err.password} ayuda="Mínimo 8 caracteres, con letras y números">
           <span className="con-boton">
@@ -357,19 +488,32 @@ function Registro({ onEntrar }: { onEntrar: () => Promise<void> }) {
             </button>
           </span>
         </Campo>
+        {familia ? (
+          <Campo etiqueta="Código del equipo" error={err.codigo} ayuda="De 6 a 8 letras o números. Te lo da el entrenador.">
+            <input
+              className="codigo-equipo"
+              autoCapitalize="characters"
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={10}
+              value={d.codigo}
+              onChange={(e) => set('codigo', normalizarCodigo(e.target.value))}
+            />
+          </Campo>
+        ) : (
+          <Campo etiqueta="Teléfono (opcional)" error={err.telefono}>
+            <input type="tel" autoComplete="tel" inputMode="tel" placeholder="600 123 456" value={d.telefono} onChange={(e) => set('telefono', e.target.value)} />
+          </Campo>
+        )}
       </fieldset>
 
-      <CamposEquipo d={d} err={err} set={set} />
-
-      <label className={`check ${err.aceptaPrivacidad ? 'con-error' : ''}`}>
-        <input type="checkbox" checked={d.aceptaPrivacidad} onChange={(e) => set('aceptaPrivacidad', e.target.checked)} />
-        <span>
-          He leído y acepto la política de privacidad. Usaremos tu email y teléfono solo para gestionar tu cuenta y avisarte de tu equipo.
-        </span>
+      <label className={`check ${err.acepta ? 'con-error' : ''}`}>
+        <input type="checkbox" checked={d.acepta} onChange={(e) => set('acepta', e.target.checked)} />
+        <span>Acepto las condiciones de uso y he leído la política de privacidad. Soy mayor de edad.</span>
       </label>
-      {err.aceptaPrivacidad && (
+      {err.acepta && (
         <p className="error" role="alert">
-          {err.aceptaPrivacidad}
+          {err.acepta}
         </p>
       )}
       {general && (

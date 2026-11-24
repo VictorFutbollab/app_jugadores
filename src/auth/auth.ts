@@ -39,24 +39,55 @@ export function formatearTelefono(t: string) {
   return m ? `+34 ${m[1]} ${m[2]} ${m[3]}` : t
 }
 
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+const telefonoOk = (t: string) => /^\+\d{9,15}$/.test(normalizarTelefono(t))
+
+/**
+ * Perfil editable. Teléfono, club, categoría y equipo son opcionales (una familia no
+ * los tiene); si se rellenan, se validan.
+ */
 export function validarPerfil(d: Omit<DatosRegistro, 'password' | 'aceptaPrivacidad'>): Errores {
   const e: Errores = {}
   if (d.nombre.trim().length < 2) e.nombre = 'Escribe tu nombre.'
   // El usuario ya no se pide (se identifica por nombre y apellidos); si llega, se valida.
   if (d.usuario && !/^[a-z0-9._]{3,20}$/.test(normalizarUsuario(d.usuario))) e.usuario = 'De 3 a 20 caracteres: letras, números, punto o guion bajo.'
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(normalizarEmail(d.email))) e.email = 'Revisa el email.'
-  if (!/^\+\d{9,15}$/.test(normalizarTelefono(d.telefono))) e.telefono = 'Revisa el teléfono (9 cifras o con prefijo internacional).'
-  if (d.entidad.trim().length < 2) e.entidad = 'Escribe el nombre del club o la escuela.'
-  if (!CATEGORIAS.some((c) => c.id === d.categoria)) e.categoria = 'Elige una categoría.'
-  if (!d.equipo.trim()) e.equipo = 'Indica el equipo (A, B, Blanco…).'
+  if (!EMAIL.test(normalizarEmail(d.email))) e.email = 'Revisa el email.'
+  if (d.telefono.trim() && !telefonoOk(d.telefono)) e.telefono = 'Revisa el teléfono (9 cifras o con prefijo internacional).'
+  if (d.entidad.trim() && d.entidad.trim().length < 2) e.entidad = 'Escribe el nombre del club o la escuela.'
+  if (d.categoria && !CATEGORIAS.some((c) => c.id === d.categoria)) e.categoria = 'Elige una categoría.'
   return e
 }
 
-export function validarRegistro(d: DatosRegistro): Errores {
-  const e = validarPerfil(d)
+// ───────────── Registro (igual que FutbolLab Informes) ─────────────
+
+export type TipoRegistro = 'entrenador' | 'familia'
+
+export interface NuevaCuenta {
+  tipo: TipoRegistro
+  nombre: string
+  apellidos: string
+  email: string
+  password: string
+  /** Opcional, solo entrenador. */
+  telefono: string
+  /** Solo familiar o ayudante: código del equipo, de 6 a 8 letras o números. */
+  codigo: string
+  /** "Acepto las condiciones de uso y he leído la política de privacidad. Soy mayor de edad". */
+  acepta: boolean
+}
+export type ErroresCuenta = Partial<Record<keyof NuevaCuenta, string>>
+
+export function validarRegistro(d: NuevaCuenta): ErroresCuenta {
+  const e: ErroresCuenta = {}
+  if (d.nombre.trim().length < 2) e.nombre = 'Escribe tu nombre.'
+  if (d.apellidos.trim().length < 2) e.apellidos = 'Escribe tus apellidos.'
+  if (!EMAIL.test(normalizarEmail(d.email))) e.email = 'Revisa el email.'
   if (d.password.length < 8) e.password = 'Mínimo 8 caracteres.'
   else if (!/[a-zA-Z]/.test(d.password) || !/\d/.test(d.password)) e.password = 'Combina letras y números.'
-  if (!d.aceptaPrivacidad) e.aceptaPrivacidad = 'Necesitamos que aceptes la política de privacidad.'
+  if (d.tipo === 'entrenador' && d.telefono.trim() && !telefonoOk(d.telefono)) e.telefono = 'Revisa el teléfono (9 cifras o con prefijo internacional).'
+  if (d.tipo === 'familia' && !/^[A-Z0-9]{6,8}$/.test(d.codigo.toUpperCase().replace(/[^A-Z0-9]/g, '')))
+    e.codigo = 'El código del equipo tiene de 6 a 8 letras o números. Pídeselo al entrenador.'
+  if (!d.acepta) e.acepta = 'Tienes que aceptar las condiciones y confirmar que eres mayor de edad.'
   return e
 }
 

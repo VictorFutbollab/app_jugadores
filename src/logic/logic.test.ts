@@ -95,15 +95,34 @@ describe('plantilla de ejemplo en la nube', () => {
 
 describe('acceso', async () => {
   const A = await import('../auth/auth')
-  it('valida usuario, email, teléfono y contraseña', () => {
-    const ok = { nombre: 'Ana Ruiz', usuario: 'ana.ruiz', email: 'ana@club.es', telefono: '600 123 456', password: 'balon2026', entidad: 'CD Ejemplo', categoria: 'infantil', equipo: 'A', genero: 'femenino' as const, aceptaPrivacidad: true }
+  it('registro como en Informes: entrenador (teléfono opcional) o familia (con código)', () => {
+    const ok = { tipo: 'entrenador' as const, nombre: 'Ana', apellidos: 'Ruiz', email: 'ana@club.es', password: 'balon2026', telefono: '', codigo: '', acepta: true }
     expect(A.validarRegistro(ok)).toEqual({})
-    // El registro ya no pide usuario: basta con nombre y apellidos.
-    expect(A.validarRegistro({ ...ok, usuario: '' })).toEqual({})
-    const mal = A.validarRegistro({ ...ok, usuario: 'a b', email: 'x@', telefono: '123', password: 'corta', aceptaPrivacidad: false, categoria: '' })
-    expect(Object.keys(mal).sort()).toEqual(['aceptaPrivacidad', 'categoria', 'email', 'password', 'telefono', 'usuario'])
+    expect(A.validarRegistro({ ...ok, telefono: '600 123 456' })).toEqual({})
+    const mal = A.validarRegistro({ ...ok, nombre: '', apellidos: '', email: 'x@', telefono: '123', password: 'corta', acepta: false })
+    expect(Object.keys(mal).sort()).toEqual(['acepta', 'apellidos', 'email', 'nombre', 'password', 'telefono'])
+    // Familia: el código es obligatorio, de 6 a 8 letras o números (se pasa a mayúsculas).
+    const familia = { ...ok, tipo: 'familia' as const }
+    expect(A.validarRegistro({ ...familia, codigo: '' }).codigo).toBeTruthy()
+    expect(A.validarRegistro({ ...familia, codigo: 'abc12' }).codigo).toBeTruthy()
+    expect(A.validarRegistro({ ...familia, codigo: 'abc123' })).toEqual({})
+    expect(A.validarRegistro({ ...familia, codigo: 'abc 123' })).toEqual({})
+  })
+  it('perfil: teléfono y datos del club son opcionales, pero si se rellenan se validan', () => {
+    const base = { nombre: 'Ana Ruiz', usuario: '', email: 'ana@club.es', telefono: '', entidad: '', categoria: '', equipo: '', genero: 'femenino' as const }
+    expect(A.validarPerfil(base)).toEqual({})
+    expect(Object.keys(A.validarPerfil({ ...base, usuario: 'a b', telefono: '123', categoria: 'nada' })).sort()).toEqual(['categoria', 'telefono', 'usuario'])
     expect(A.normalizarTelefono('600 12 34 56')).toBe('+34600123456')
     expect(A.normalizarTelefono('0034 600123456')).toBe('+34600123456')
+  })
+  it('usuario interno a partir del email y códigos de equipo', async () => {
+    const C = await import('../db/cuenta')
+    expect(C.generarUsuario('Ana.Ruiz+club@x.es', () => 1234)).toBe('ana.ruizclub1234')
+    expect(C.generarUsuario('muy.largo.nombre.de.email@x.es', () => 5678)).toBe('muy.largo.nomb5678')
+    expect(C.generarUsuario('a@x.es', () => 1000)).toMatch(/^[a-z0-9._]{3,20}$/)
+    expect(C.normalizarCodigo(' ab-12 cd ')).toBe('AB12CD')
+    expect(C.codigoValido('ab12cd')).toBe(true)
+    expect(C.codigoValido('ab12')).toBe(false)
   })
   // Contraseñas, sesiones y roles: Supabase Auth + supabase/tests/rls.test.ts
 })

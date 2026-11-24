@@ -9,7 +9,8 @@ import type { Consentimiento, Cuenta, Equipo, Estado, Evaluacion, Jugador, Miemb
 import { datosExternos, resumenJugador, type DatosExternos, type ResumenJugador } from '../logic/stats'
 import { minimizar } from '../logic/privacy'
 import { quedaAlgunAdmin } from '../logic/admin'
-import { Acceso, type Panel } from '../screens/Acceso'
+import { Acceso, NuevaContrasena, type Panel } from '../screens/Acceso'
+import { completarCuenta, equiposFamilia, normalizarCodigo, type EquipoFamilia, type TipoCuenta } from '../db/cuenta'
 import { FLAGS } from '../config'
 
 const CLAVE_PANEL = 'panel'
@@ -73,6 +74,12 @@ interface Ctx {
   esAdmin: boolean
   /** 'admin' si se entró por el acceso de administración (email + contraseña + PIN); si no, 'usuario'. */
   panel: Panel
+  /** Tipo de cuenta FutbolLab (compartido con Informes): admin, manager o familia. */
+  tipoCuenta: TipoCuenta | null
+  /** Equipos en los que es delegado o familia: solo lectura, con dorsal e iniciales. */
+  equiposInf: EquipoFamilia[]
+  /** Unirse a un equipo con el código que da el entrenador (inf_unirse). */
+  unirseConCodigo: (codigo: string) => Promise<void>
   perfiles: Cuenta[]
   /** Miembros de todos los equipos visibles (el admin los ve todos). */
   miembrosTodos: MiembroEquipo[]
@@ -129,6 +136,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [sinConexion, setSinConexion] = useState<string | null>(null)
   const [numPendientes, setNumPendientes] = useState(0)
+  const [tipoCuenta, setTipoCuenta] = useState<TipoCuenta | null>(null)
+  const [equiposInf, setEquiposInf] = useState<EquipoFamilia[]>([])
+  const [recuperando, setRecuperando] = useState(false)
   // Panel por el que se entró. El de admin solo se abre desde su propio acceso (email + contraseña + PIN).
   const [panel, setPanelState] = useState<Panel>(() => leerPanel())
   const setPanel = (p: Panel) => {
@@ -177,6 +187,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const limpiar = useCallback(() => {
     usuarioRef.current = null
+    setTipoCuenta(null)
+    setEquiposInf([])
     setPanelState('usuario')
     guardarPanel('usuario')
     setCuenta(null)
@@ -225,8 +237,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       usuarioRef.current = c.id
       setCuenta(c)
+      // Cuenta FutbolLab compartida con Informes: tipo de cuenta y código de equipo pendiente.
+      try {
+        const r = await completarCuenta(c)
+        setTipoCuenta(r.tipo)
+        if (r.aviso) setAviso(r.aviso)
+      } catch (e) {
+        if (SC.esErrorDeRed(e)) throw e
+        console.warn('No se ha podido completar la cuenta', e)
+      }
       await subirCola() // primero lo pendiente, para que lo que se cargue ya lo incluya
       await recargar()
+      // Equipos en los que es delegado o familia (de Informes): solo lectura, dorsal e iniciales.
+      setEquiposInf(await equiposFamilia(c.id).catch(() => []))
       setFase('dentro')
     } catch (e) {
       if (SC.esErrorDeRed(e) && (await abrirSinConexion())) return
@@ -257,6 +280,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Cierre de sesión (aquí o en otra pestaña) o sesión revocada: fuera todo lo cargado.
     const { data: sub } = supabase.auth.onAuthStateChange((evento) => {
       if (evento === 'SIGNED_OUT') setTimeout(limpiar, 0)
+      // Vuelve del enlace "¿Olvidaste la contraseña?": hay que elegir una nueva.
+      if (evento === 'PASSWORD_RECOVERY') setRecuperando(true)
     })
     return () => sub.subscription.unsubscribe()
   }, [entrar, limpiar, abrirSinConexion])
@@ -339,6 +364,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       <div className="cargando" role="status" aria-label="Cargando">
         <Logo alto={40} />
       </div>
+    )
+  }
+
+  if (recuperando) {
+    return (
+      <NuevaContrasena
+        onHecho={async () => {
+          setRecuperando(false)
+          ir({ nombre: 'inicio' }, true)
+          await entrar()
+        }}
+      />
     )
   }
 
@@ -485,6 +522,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Solo dentro del panel de admin: en el panel normal no hay ningún acceso de administración.
     esAdmin: adminReal && panel === 'admin' && verComo === 'yo',
     panel,
+    tipoCuenta,
+    equiposInf,
+    async unirseConCodigo(codigo) {
+      if (sinSenal()) throw new Error(SC.MENSAJE_NECESITA_RED)
+      const r = await supabase.rpc('inf_unirse', { codigo: normalizarCodigo(codigo) })
+      // El mensaje de error ya viene en español desde el servidor: se muestra tal cual.
+      if (r.error) throw new Error(r.error.message)
+      await recargar()
+      setEquiposInf(await equiposFamilia(cuenta.id).catch(() => []))
+    },
     perfiles,
     miembrosTodos: todo.miembros,
     guardarJugador: (j) => yRecargar(() => R.guardar('jugadores', minimizar({ ...j, actualizadoEn: new Date().toISOString() }))),
