@@ -394,10 +394,10 @@ function PopupNota({ item, jugadores, notas, onNota, onCerrar }: { item: ItemEva
                     min={0}
                     max={10}
                     step={1}
-                    value={v ?? 5}
+                    value={v ?? 0}
                     aria-label={`${item.nombre} de ${j.nombre}, de 0 a 10`}
                     aria-valuetext={sin ? 'Sin valorar' : `${v}: ${etiquetaNota(v)}`}
-                    style={{ '--pct': `${(v ?? 5) * 10}%` } as CSSProperties}
+                    style={{ '--pct': `${(v ?? 0) * 10}%` } as CSSProperties}
                     onChange={(e) => onNota(j.id, e.currentTarget.valueAsNumber)}
                     // Tocar justo en el centro de una barra sin valorar también cuenta.
                     onPointerUp={(e) => sin && onNota(j.id, e.currentTarget.valueAsNumber)}
