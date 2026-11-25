@@ -534,7 +534,10 @@ export function AdminJugador({ id, modo = 'admin' }: { id: string; modo?: 'admin
       // Retirada marcada en el formulario del admin: también va por su función (inf_retirar_consentimiento).
       if (yaVigente && firmado?.retiradoEn) await retirarConsentimiento(limpio.id)
       const estadoLimpio: Estado = { ...est, vueltaPrevista: est.tipo === 'disponible' ? null : est.vueltaPrevista || null, nota: est.nota?.trim() }
-      if (nuevo || JSON.stringify(estadoLimpio) !== JSON.stringify(estadoPrevio)) await guardarEstado(estadoLimpio)
+      // La disponibilidad solo se escribe si cambia (sin estado guardado, el jugador cuenta como disponible).
+      // En la base de datos solo la puede escribir un admin: el entrenador no ve esta sección.
+      const cambiaEstado = estadoPrevio ? JSON.stringify(estadoLimpio) !== JSON.stringify(estadoPrevio) : estadoLimpio.tipo !== 'disponible'
+      if (enAdmin && cambiaEstado) await guardarEstado(estadoLimpio)
       if (nuevo) ir(enAdmin ? { nombre: 'admin-jugador', id: limpio.id } : { nombre: 'jugador-editar', id: limpio.id }, true)
       setJ({ ...limpio, contactos: limpio.contactos?.length ? limpio.contactos : [contactoVacio()] })
       setAviso(nuevo ? 'Jugador dado de alta.' : 'Cambios guardados.')
@@ -815,6 +818,7 @@ export function AdminJugador({ id, modo = 'admin' }: { id: string; modo?: 'admin
         </fieldset>
         </Seccion>
 
+        {enAdmin && (
         <Seccion titulo="Disponibilidad" resumen={resumenEstado} aviso={est.tipo !== 'disponible'}>
         <fieldset className="grupo plano">
           <div className="segmentado pequeno estados-sel" role="radiogroup" aria-label="Estado">
@@ -841,6 +845,7 @@ export function AdminJugador({ id, modo = 'admin' }: { id: string; modo?: 'admin
           )}
         </fieldset>
         </Seccion>
+        )}
       </div>
 
       <div className="barra-accion">

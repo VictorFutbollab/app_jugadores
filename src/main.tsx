@@ -10,6 +10,7 @@ import '@fontsource-variable/bricolage-grotesque/wght.css'
 import './index.css'
 import './estilo-v2.css'
 import './estilo-cesped.css'
+import './estilo-pulido.css'
 import App from './App'
 import { FLAGS } from './config'
 
