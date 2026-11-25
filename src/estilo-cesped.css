@@ -227,9 +227,9 @@
 [data-estilo='v2'][data-visual='cesped'] .acceso-pie {
   color: rgba(255, 255, 255, 0.85);
 }
-/* Que el banderín se vea: en móvil y tablet la tarjeta baja y el banderín
-   asoma arriba; en ordenador la tarjeta va a la derecha y el córner queda libre. */
-@media (max-width: 1023px) {
+/* Tablet: la tarjeta baja y el foco asoma arriba. Ordenador: la tarjeta va a la
+   derecha y la foto queda libre. (Móvil: al final del archivo, foto arriba + hoja.) */
+@media (min-width: 760px) and (max-width: 1023px) {
   [data-estilo='v2'][data-visual='cesped'] .acceso {
     justify-content: flex-start;
   }
@@ -433,5 +433,81 @@
     margin: 0 -32px 18px;
     padding-left: 32px;
     padding-right: 32px;
+  }
+}
+
+/* El pie va dentro de la hoja/tarjeta: texto discreto sobre blanco */
+[data-estilo='v2'][data-visual='cesped'] .acceso-hoja .acceso-pie {
+  width: auto;
+  margin: 18px 0 0;
+  padding: 0;
+  color: var(--text-3);
+  text-shadow: none;
+}
+
+/* ───────────── Entrada en el MÓVIL: foto arriba, formulario en una hoja que sube ───────────── */
+@media (max-width: 759px) {
+  [data-estilo='v2'][data-visual='cesped'] .acceso {
+    padding: 0;
+    align-items: stretch;
+    justify-content: flex-start;
+    background: var(--surface);
+  }
+  /* La foto ocupa la parte de arriba: se ven el foco y los jugadores */
+  [data-estilo='v2'][data-visual='cesped'] .acceso-campo {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: max(400px, 54vh);
+    background:
+      linear-gradient(rgba(6, 14, 10, 0.25), rgba(6, 14, 10, 0.05) 45%, rgba(6, 14, 10, 0.55)),
+      url('/acceso-fondo.jpg') 50% 40% / cover no-repeat,
+      #0c1a12;
+  }
+  [data-estilo='v2'][data-visual='cesped'] .acceso .acceso-caja {
+    margin: 0;
+    max-width: none;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+  }
+  /* Logo y lema sobre la foto */
+  [data-estilo='v2'][data-visual='cesped'] .acceso-marca {
+    margin: 0;
+    min-height: calc(max(400px, 54vh) - 26px);
+    /* el foco queda arriba, a la vista; el logo, entre el foco y los jugadores */
+    padding: calc(max(118px, 15vh) + env(safe-area-inset-top)) 24px 40px;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7);
+  }
+  [data-estilo='v2'][data-visual='cesped'] .acceso-marca .logo {
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.6));
+  }
+  [data-estilo='v2'][data-visual='cesped'] .acceso-marca .acceso-lema {
+    color: #ffffff;
+  }
+  /* El formulario: una hoja blanca con esquinas redondeadas que sube desde abajo */
+  [data-estilo='v2'][data-visual='cesped'] .acceso-hoja {
+    position: relative;
+    margin-top: -26px;
+    min-height: calc(100dvh - max(400px, 54vh) + 26px);
+    padding: 22px 20px calc(28px + env(safe-area-inset-bottom));
+    border-radius: 28px 28px 0 0;
+    background: var(--surface);
+    box-shadow: 0 -12px 30px -10px rgba(0, 0, 0, 0.45);
+  }
+  [data-estilo='v2'][data-visual='cesped'] .acceso-hoja::before {
+    content: '';
+    display: block;
+    width: 40px;
+    height: 4px;
+    margin: -8px auto 16px;
+    border-radius: 2px;
+    background: var(--line-2);
   }
 }

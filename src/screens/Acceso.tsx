@@ -44,7 +44,9 @@ export function Acceso({ onEntrar, error }: { onEntrar: (panel: Panel) => Promis
             <p className="acceso-app">Administración</p>
             <p className="acceso-lema">Acceso solo para administradores del club.</p>
           </div>
-          <EntrarAdmin onEntrar={() => onEntrar('admin')} volver={() => setModo('entrar')} />
+          <div className="acceso-hoja">
+            <EntrarAdmin onEntrar={() => onEntrar('admin')} volver={() => setModo('entrar')} />
+          </div>
         </div>
       </div>
     )
@@ -58,6 +60,8 @@ export function Acceso({ onEntrar, error }: { onEntrar: (panel: Panel) => Promis
           <p className="acceso-app">Jugadores</p>
           <p className="acceso-lema">Conoce a cada jugador. Mide su evolución. Decide con datos.</p>
         </div>
+        {/* En el móvil, esta "hoja" sube desde abajo sobre la foto; en ordenador es el cuerpo de la tarjeta */}
+        <div className="acceso-hoja">
         <div className="segmentado" role="tablist">
           <button role="tab" aria-selected={modo === 'entrar' || modo === 'olvido'} className={modo === 'entrar' || modo === 'olvido' ? 'on' : ''} onClick={() => setModo('entrar')}>
             Entrar
@@ -78,12 +82,13 @@ export function Acceso({ onEntrar, error }: { onEntrar: (panel: Panel) => Promis
         ) : (
           <Registro onEntrar={() => onEntrar('usuario')} />
         )}
+        <p className="acceso-pie">
+          {MODO_LOCAL
+            ? 'Modo local (solo en este ordenador): las cuentas y los datos se guardan en este navegador y no hace falta confirmar el email.'
+            : 'Acceso seguro con FutbolLab · tus datos se guardan cifrados en el servidor'}
+        </p>
+        </div>
       </div>
-      <p className="acceso-pie">
-        {MODO_LOCAL
-          ? 'Modo local (solo en este ordenador): las cuentas y los datos se guardan en este navegador y no hace falta confirmar el email.'
-          : 'Acceso seguro con FutbolLab · tus datos se guardan cifrados en el servidor'}
-      </p>
     </div>
   )
 }
@@ -333,6 +338,7 @@ export function NuevaContrasena({ onHecho }: { onHecho: () => Promise<void> }) {
           <p className="acceso-app">Nueva contraseña</p>
           <p className="acceso-lema">Elige la contraseña de tu cuenta FutbolLab. Vale para Jugadores e Informes.</p>
         </div>
+        <div className="acceso-hoja">
         <form
           className="form"
           onSubmit={async (e) => {
@@ -367,6 +373,7 @@ export function NuevaContrasena({ onHecho }: { onHecho: () => Promise<void> }) {
             {cargando ? 'Guardando…' : 'Guardar y entrar'}
           </button>
         </form>
+        </div>
       </div>
     </div>
   )
