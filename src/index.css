@@ -2513,3 +2513,16 @@ button.admin-salir {
 .form.unirse {
   margin-top: 0;
 }
+
+/* Foto de perfil por defecto: balón en el centro del campo */
+.avatar-futbol {
+  display: block;
+  flex: none;
+  border-radius: 50%;
+}
+.perfil-foto .avatar-futbol.perfil-ini {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: none;
+}

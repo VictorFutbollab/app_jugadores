@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useApp } from '../state/store'
 import { href, ir, volver, type Ruta } from '../state/router'
-import { Avatar, Cabecera, EstadoChip, Vacio } from '../ui/components'
+import { Avatar, AvatarFutbol, Cabecera, EstadoChip, Vacio } from '../ui/components'
 import { Icon, type NombreIcono } from '../ui/Icon'
 import { Campo, CamposEquipo } from './Acceso'
 import * as R from '../db/remote'
 import { categoria } from '../data/categorias'
 import type { Errores } from '../auth/auth'
-import { ESTADO_INFO, POSICION_NOMBRE, POSICION_ORDEN, fechaCorta, fechaLarga, iniciales, num1, uid } from '../logic/format'
+import { ESTADO_INFO, POSICION_NOMBRE, POSICION_ORDEN, fechaCorta, fechaLarga, num1, uid } from '../logic/format'
 import { tieneConsentimientoFicha, validarConsentimiento } from '../logic/privacy'
 import {
   FILTROS_ADMIN,
@@ -836,9 +836,7 @@ function FotoPerfil({ c, nombre, size = 40 }: { c?: Cuenta; nombre: string; size
   return c?.foto ? (
     <img src={c.foto} alt="" className="avatar redondo" width={size} height={size} />
   ) : (
-    <span className="avatar ini redondo" style={{ width: size, height: size, fontSize: size * 0.4 }} aria-hidden>
-      {iniciales(nombre, nombre.split(' ')[1] ?? '')}
-    </span>
+    <AvatarFutbol size={size} className="avatar redondo" etiqueta={`Foto de ${nombre}`} />
   )
 }
 

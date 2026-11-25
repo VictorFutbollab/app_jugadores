@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect } from 'react'
 import { AppProvider, useApp } from './state/store'
 import { Logo } from './ui/Logo'
+import { AvatarFutbol } from './ui/components'
 import { Icon, type NombreIcono } from './ui/Icon'
 import { href, ir, useRuta, type Ruta } from './state/router'
 import { Inicio } from './screens/Inicio'
@@ -61,7 +62,7 @@ function BarraSuperior({ enAdmin }: { enAdmin: boolean }) {
           <strong>{eq?.nombre ?? (inf ? (inf.nombre ?? 'Tu equipo') : cuenta.nombre)}</strong>
           <span>{verComo === 'ayudante' ? 'Viendo como ayudante' : (eq?.entidad ?? (inf ? (inf.rol === 'anotador' ? 'Delegado' : 'Familia') : 'Sin equipo asignado'))}</span>
         </span>
-        {cuenta.foto ? <img src={cuenta.foto} alt="" className="appbar-foto" /> : <span className="appbar-foto ini">{cuenta.nombre.slice(0, 1).toUpperCase()}</span>}
+        {cuenta.foto ? <img src={cuenta.foto} alt="" className="appbar-foto" /> : <AvatarFutbol size={34} className="appbar-foto" />}
       </a>
     </header>
   )

@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useApp } from '../state/store'
-import { Cabecera } from '../ui/components'
+import { AvatarFutbol, Cabecera } from '../ui/components'
 import { Icon } from '../ui/Icon'
 import { Campo, CamposEquipo } from './Acceso'
 import { categoria } from '../data/categorias'
 import { formatearTelefono, normalizarEmail, normalizarTelefono, normalizarUsuario, prepararFoto, validarPerfil, type DatosRegistro, type Errores } from '../auth/auth'
-import { iniciales } from '../logic/format'
 import type { Cuenta } from '../model/types'
 
 type Editable = Pick<DatosRegistro, 'nombre' | 'usuario' | 'email' | 'telefono' | 'entidad' | 'categoria' | 'equipo' | 'genero'>
@@ -91,7 +90,7 @@ export function Perfil() {
 
       <section className="perfil-cab">
         <div className="perfil-foto">
-          {cuenta.foto ? <img src={cuenta.foto} alt="Tu foto de perfil" /> : <span className="perfil-ini">{iniciales(cuenta.nombre, cuenta.nombre.split(' ')[1] ?? '')}</span>}
+          {cuenta.foto ? <img src={cuenta.foto} alt="Tu foto de perfil" /> : <AvatarFutbol size={88} className="perfil-ini" />}
           <button className="perfil-foto-btn" aria-label="Cambiar foto" onClick={() => fileRef.current?.click()}>
             <Icon n="camara" size={18} />
           </button>
@@ -116,9 +115,12 @@ export function Perfil() {
         <div className="perfil-id">
           <strong>{cuenta.nombre}</strong>
           <span className="sub">{cuenta.email}</span>
-          <span className="perfil-equipo">
-            {categoria(cuenta.categoria).nombre} {cuenta.equipo} · {cuenta.entidad}
-          </span>
+          {/* Solo lo que esté rellenado: las cuentas nuevas no traen club ni categoría */}
+          {(cuenta.categoria || cuenta.entidad) && (
+            <span className="perfil-equipo">
+              {[cuenta.categoria && `${categoria(cuenta.categoria).nombre} ${cuenta.equipo}`.trim(), cuenta.entidad].filter(Boolean).join(' · ')}
+            </span>
+          )}
           {cuenta.foto && (
             <button className="enlace pequeno" onClick={() => guardarPerfil({ ...cuenta, foto: null })}>
               Quitar foto
