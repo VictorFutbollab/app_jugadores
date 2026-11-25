@@ -156,7 +156,18 @@ function aFila(tabla: TablaDatos, o: Record<string, unknown>): Record<string, un
   }
 }
 
+/**
+ * Equipos y jugadores se guardan con las funciones compartidas de FutbolLab (las mismas que usa Informes):
+ * permiten crear y editar al entrenador (cuenta manager) y al admin, fusionan los datos sin borrar lo que
+ * guardan otras apps y nunca tocan el consentimiento (solo jugador_registrar_consentimiento).
+ */
+async function guardarCompartido(tabla: 'equipos' | 'jugadores', o: Record<string, unknown>) {
+  if (tabla === 'equipos') ok(await supabase.rpc('inf_guardar_equipo', { p_id: o.id, p_cambios: o }))
+  else ok(await supabase.rpc('inf_guardar_jugadores', { p_equipo: o.equipoId, p_jugadores: [{ id: o.id, data: o }] }))
+}
+
 export async function guardar(tabla: TablaDatos, o: object) {
+  if (tabla === 'equipos' || tabla === 'jugadores') return guardarCompartido(tabla, o as Record<string, unknown>)
   ok(await supabase.from(tabla).upsert(aFila(tabla, o as Record<string, unknown>), { onConflict: 'id' }))
 }
 
@@ -214,8 +225,9 @@ export async function cambiarRol(usuarioId: string, role: RolApp) {
   ok(await supabase.rpc('admin_set_role', { objetivo: usuarioId, nuevo: role }))
 }
 
+/** Crea el equipo con la función compartida: quien lo crea queda como entrenador principal (en todas las apps). */
 export async function crearEquipo(e: Equipo) {
-  await guardar('equipos', e)
+  ok(await supabase.rpc('inf_crear_equipo', { p_id: e.id, p_data: e }))
 }
 
 /**
