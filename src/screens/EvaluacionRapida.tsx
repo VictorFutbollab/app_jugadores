@@ -32,7 +32,7 @@ type Notas = Record<string, Record<string, number>>
 /**
  * Evaluación en una sola pantalla:
  *  1. Contexto (partido o entrenamiento).
- *  2. Jugadores que vas a valorar (todos desmarcados al entrar).
+ *  2. Jugadores que vas a valorar (todos marcados al entrar).
  *  3. Aspectos por área: al tocar uno se abre la barrita 0–10 para cada jugador marcado.
  *  4. "Guardar evaluación": se guarda la nota de cada jugador y se ve cómo ha evolucionado.
  */
@@ -41,8 +41,8 @@ export function EvaluacionRapida() {
   const { ds, jugadoresVisibles, estadoDe, yo, tipoCuenta, puedeEditar, guardarEvaluacion, usuarioId } = app
   const [contexto, setContexto] = useState<ContextoEvaluacion>('partido')
   const candidatos = useMemo(() => jugadoresVisibles.filter(tieneConsentimientoFicha).sort((a, b) => a.dorsal - b.dorsal), [jugadoresVisibles])
-  // Todos desmarcados: el entrenador elige a quién ha visto hoy.
-  const [sel, setSel] = useState<Set<string>>(() => new Set())
+  // Todos marcados de entrada: el entrenador desmarca a quien no haya visto hoy.
+  const [sel, setSel] = useState<Set<string>>(() => new Set(candidatos.map((j) => j.id)))
   const [notas, setNotas] = useState<Notas>({})
   const [abierto, setAbierto] = useState<ItemEvaluacion | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
@@ -65,7 +65,7 @@ export function EvaluacionRapida() {
         onOtra={() => {
           setHecho(null)
           setNotas({})
-          setSel(new Set())
+          setSel(new Set(candidatos.map((j) => j.id)))
         }}
       />
     )
