@@ -20,6 +20,24 @@ if (FLAGS.disenoV2) {
   document.documentElement.dataset.visual = FLAGS.estiloVisual
 }
 
+// Versión nueva publicada: el service worker nuevo toma el control (skipWaiting + clientsClaim)
+// y la página se recarga UNA vez para enseñarla, sin tener que recargar a mano dos veces.
+// Solo si ya había uno antes: en la primera visita no hace falta recargar.
+// Se busca actualización al abrir y al volver a la pestaña.
+if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+  let recargando = false
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (recargando) return
+    recargando = true
+    location.reload()
+  })
+  const buscar = () => navigator.serviceWorker.getRegistration().then((r) => r?.update()).catch(() => undefined)
+  void buscar()
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void buscar()
+  })
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
