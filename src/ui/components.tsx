@@ -150,8 +150,8 @@ export function BarrasArea({ areas, comparar }: { areas: AreaScores; comparar?: 
             {AREA_CORTO[a]}
           </span>
           <span className="barras-pista">
-            <span className="barras-valor" style={{ width: `${((areas[a] ?? 0) / 5) * 100}%`, background: AREA_COLOR[a] }} />
-            {comparar?.[a] != null && <span className="barras-ref" style={{ left: `${(comparar[a]! / 5) * 100}%` }} title="Hace 30 días" />}
+            <span className="barras-valor" style={{ width: `${((areas[a] ?? 0) / 10) * 100}%`, background: AREA_COLOR[a] }} />
+            {comparar?.[a] != null && <span className="barras-ref" style={{ left: `${(comparar[a]! / 10) * 100}%` }} title="Hace 30 días" />}
           </span>
           <span className="num">{num1(areas[a])}</span>
         </li>
@@ -183,5 +183,5 @@ export function Vacio({ children, icono = 'plantilla' }: { children: ReactNode; 
   )
 }
 
-/** Escala fija de color para las notas 1–5 (siempre acompañada del número, nunca solo color). */
-export const claseNota = (v: number | null | undefined) => (v == null ? 'n0' : `n${Math.min(5, Math.max(1, Math.round(v)))}`)
+/** Escala fija de color para las notas 0–10 en 5 tramos (siempre acompañada del número, nunca solo color). */
+export const claseNota = (v: number | null | undefined) => (v == null ? 'n0' : `n${Math.min(5, Math.max(1, Math.round(v / 2)))}`)

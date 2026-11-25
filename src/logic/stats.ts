@@ -6,6 +6,7 @@ import type {
   ItemEvaluacion,
   Jugador,
   ParticipacionPartido,
+  Puntuacion,
 } from '../model/types'
 import { AREAS, edad } from './format'
 
@@ -27,6 +28,17 @@ export function itemsAplicables(items: ItemEvaluacion[], j: Pick<Jugador, 'fecha
   )
 }
 
+/** Las notas van de 0 a 10. */
+export const NOTA_MAX = 10
+
+/**
+ * Nota en la escala 0–10. Las antiguas (botones 1–5, sin `escala`) se convierten al leerlas
+ * (un 4 es un 8) sin tocar lo guardado; así todas las medias y gráficos usan la misma escala.
+ */
+export function nota10(p: Pick<Puntuacion, 'valor' | 'escala'>): number {
+  return p.escala === 10 ? p.valor : p.valor * 2
+}
+
 /** Última puntuación de cada ítem hasta una fecha (incluida). Lo no observado no cuenta. */
 export function ultimasPuntuaciones(evals: Evaluacion[], hasta?: string) {
   const lim = hasta ? new Date(hasta).getTime() : Infinity
@@ -34,7 +46,7 @@ export function ultimasPuntuaciones(evals: Evaluacion[], hasta?: string) {
     .filter((e) => !e.eliminadoEn && new Date(e.fecha).getTime() <= lim)
     .sort((a, b) => a.fecha.localeCompare(b.fecha))
   const m = new Map<string, number>()
-  for (const ev of orden) for (const p of ev.puntuaciones) m.set(p.itemId, p.valor)
+  for (const ev of orden) for (const p of ev.puntuaciones) m.set(p.itemId, nota10(p))
   return m
 }
 

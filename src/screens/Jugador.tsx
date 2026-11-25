@@ -4,6 +4,7 @@ import { useApp } from '../state/store'
 import { href, ir, volver } from '../state/router'
 import { Avatar, BarrasArea, Cabecera, Dato, Enlace, EstadoChip, Tendencia, Vacio, claseNota } from '../ui/components'
 import { RadarAreas } from '../ui/RadarAreas'
+import { nota10 } from '../logic/stats'
 import { AREAS, AREA_COLOR, AREA_CORTO, POSICION_NOMBRE, edad, fechaCorta, fechaLarga, num0, num1, pct } from '../logic/format'
 import { FLAGS } from '../config'
 import { accionesEntrenador } from '../logic/permisos'
@@ -181,19 +182,23 @@ function Resumen({ j }: { j: TJugador }) {
         <section className="bloque">
           <h2>Última evaluación · {fechaCorta(ultima.fecha)}</h2>
           <ul className="lista-puntos">
-            {ultima.puntuaciones.map((p) => (
-              <li key={p.itemId}>
-                <span>{nombreItem(p.itemId)}</span>
-                <span className={`puntos num ${claseNota(p.valor)}`} aria-label={`${p.valor} de 5`}>
-                  <span className="segmentos" aria-hidden>
-                    {[1, 2, 3, 4, 5].map((k) => (
-                      <i key={k} className={k <= p.valor ? 'on' : ''} />
-                    ))}
+            {ultima.puntuaciones.map((p) => {
+              // Escala 0–10 (las notas antiguas 1–5 se leen ×2); 5 segmentos de 2 puntos.
+              const v = nota10(p)
+              return (
+                <li key={p.itemId}>
+                  <span>{nombreItem(p.itemId)}</span>
+                  <span className={`puntos num ${claseNota(v)}`} aria-label={`${v} de 10`}>
+                    <span className="segmentos" aria-hidden>
+                      {[2, 4, 6, 8, 10].map((k) => (
+                        <i key={k} className={k <= v + 1 ? 'on' : ''} />
+                      ))}
+                    </span>
+                    {v}
                   </span>
-                  {p.valor}
-                </span>
-              </li>
-            ))}
+                </li>
+              )
+            })}
           </ul>
         </section>
       )}

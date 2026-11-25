@@ -145,7 +145,7 @@ export function Plantilla() {
                       {FLAGS.disenoV2 && r.media != null && (
                         <span className="mini-areas" role="img" aria-label={AREAS.map((a) => `${AREA_CORTO[a]} ${num1(r.areas[a])}`).join(', ')}>
                           {AREAS.map((a) => (
-                            <i key={a} style={{ height: `${r.areas[a] == null ? 0 : 8 + ((r.areas[a]! - 1) / 4) * 92}%`, background: AREA_COLOR[a] }} />
+                            <i key={a} style={{ height: `${r.areas[a] == null ? 0 : 8 + (r.areas[a]! / 10) * 92}%`, background: AREA_COLOR[a] }} />
                           ))}
                         </span>
                       )}
@@ -166,7 +166,7 @@ export function Plantilla() {
           })}
         </ul>
       )}
-      <p className="nota-pie">Media 1–5 de las 4 áreas. Flecha y número: cambio respecto a hace 30 días.</p>
+      <p className="nota-pie">Media 0–10 de las 4 áreas. Flecha y número: cambio respecto a hace 30 días.</p>
     </>
   )
 }

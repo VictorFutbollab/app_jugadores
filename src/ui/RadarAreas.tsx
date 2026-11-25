@@ -11,7 +11,7 @@ export function RadarAreas({ areas, comparar, alto = 260, etiquetaComparar = 'Ha
         <RadarChart data={data} outerRadius="72%">
           <PolarGrid stroke="var(--line)" />
           <PolarAngleAxis dataKey="area" tick={{ fill: 'var(--text-2)', fontSize: 12, fontFamily: 'Inter' }} />
-          <PolarRadiusAxis domain={[0, 5]} tickCount={6} tick={false} axisLine={false} />
+          <PolarRadiusAxis domain={[0, 10]} tickCount={6} tick={false} axisLine={false} />
           {comparar && (
             <Radar name={etiquetaComparar} dataKey="equipo" stroke="var(--text-3)" strokeDasharray="4 3" fill="transparent" isAnimationActive={false} />
           )}

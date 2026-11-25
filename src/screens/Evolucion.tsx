@@ -91,7 +91,7 @@ export function Evolucion({ id }: { id?: string }) {
                 <LineChart data={datos} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
                   <CartesianGrid stroke="var(--line)" vertical={false} />
                   <XAxis dataKey="etiqueta" tick={{ fill: 'var(--text-2)', fontSize: 12 }} stroke="var(--line)" tickLine={false} />
-                  <YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} tick={{ fill: 'var(--text-2)', fontSize: 12 }} stroke="var(--line)" tickLine={false} axisLine={false} />
+                  <YAxis domain={[0, 10]} ticks={[0, 2, 4, 6, 8, 10]} tick={{ fill: 'var(--text-2)', fontSize: 12 }} stroke="var(--line)" tickLine={false} axisLine={false} />
                   <Tooltip
                     contentStyle={{ background: 'var(--surface-2)', border: '1px solid var(--line)', borderRadius: 12, fontSize: 13, color: 'var(--text)' }}
                     labelStyle={{ color: 'var(--text)', fontWeight: 600 }}

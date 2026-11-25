@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { crearDatosEjemplo, prefijarIds, USUARIO_AYUDANTE } from '../data/seed'
 import { ITEMS_POR_DEFECTO } from '../data/items'
-import { itemsAplicables, mediaGeneral, puntuacionesPorArea, resumenJugador, serieEvolucion, ultimasPuntuaciones } from './stats'
+import { itemsAplicables, mediaGeneral, nota10, puntuacionesPorArea, resumenJugador, serieEvolucion, ultimasPuntuaciones } from './stats'
 import { minimizar, puedeVerNota, tieneConsentimientoFicha, validarConsentimiento } from './privacy'
 
 const ds = crearDatosEjemplo(new Date('2026-11-19T10:00:00Z'))
@@ -39,9 +39,28 @@ describe('ítems y medias', () => {
       { id: 'a', creadoEn: '', actualizadoEn: '', creadoPor: '', jugadorId: 'x', fecha: '2026-10-01', evaluadorId: '', contexto: 'partido', puntuaciones: [{ itemId: 'tec-pase-corto', valor: 4 }] },
     ])
     const sc = puntuacionesPorArea(ult, ITEMS_POR_DEFECTO)
-    expect(sc.tecnica).toBe(4)
+    // Nota antigua (1–5): se lee en la escala 0–10, un 4 es un 8
+    expect(sc.tecnica).toBe(8)
     expect(sc.tactica).toBeNull()
-    expect(mediaGeneral(sc)).toBe(4)
+    expect(mediaGeneral(sc)).toBe(8)
+  })
+  it('las notas de la barrita (0–10) se leen tal cual y se mezclan bien con las antiguas', () => {
+    const base = { creadoEn: '', actualizadoEn: '', creadoPor: '', jugadorId: 'x', evaluadorId: '', contexto: 'partido' as const }
+    const ult = ultimasPuntuaciones([
+      { ...base, id: 'a', fecha: '2026-10-01', puntuaciones: [{ itemId: 'tec-pase-corto', valor: 3 }, { itemId: 'tec-control', valor: 5 }] },
+      { ...base, id: 'b', fecha: '2026-10-08', puntuaciones: [{ itemId: 'tec-pase-corto', valor: 7, escala: 10 }, { itemId: 'tac-lectura', valor: 0, escala: 10 }] },
+    ])
+    expect(ult.get('tec-pase-corto')).toBe(7) // la última, ya en 0–10
+    expect(ult.get('tec-control')).toBe(10) // antigua 5 → 10
+    expect(ult.get('tac-lectura')).toBe(0) // un 0 es una nota, no "sin observar"
+    const sc = puntuacionesPorArea(ult, ITEMS_POR_DEFECTO)
+    expect(sc.tecnica).toBe(8.5)
+    expect(sc.tactica).toBe(0)
+  })
+  it('nota10 convierte solo las antiguas', () => {
+    expect(nota10({ valor: 4 })).toBe(8)
+    expect(nota10({ valor: 4, escala: 10 })).toBe(4)
+    expect(nota10({ valor: 0, escala: 10 })).toBe(0)
   })
   it('en iniciación pesan más actitud y coordinación', () => {
     const sc = { tecnica: 2, tactica: 2, fisica: 2, mental: 5 }

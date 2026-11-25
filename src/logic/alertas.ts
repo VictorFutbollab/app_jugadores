@@ -42,7 +42,7 @@ export function alertasInicio(
       out.push({ jugador: j, tipo: 'consentimiento', frase: `Falta el consentimiento de la familia de ${n}: hasta entonces no se le puede evaluar.` })
       continue
     }
-    if (r?.tendencia != null && r.tendencia <= -0.3) {
+    if (r?.tendencia != null && r.tendencia <= -0.6 /* escala 0–10 */) {
       out.push({ jugador: j, tipo: 'bajada', frase: `A ${n} le está costando más este mes; buen momento para hablar con él.` })
     }
     if (x && x.cargaMediaSemanal > 0 && x.cargaSemana > x.cargaMediaSemanal * 1.3) {
@@ -59,7 +59,7 @@ export function alertasInicio(
 /** Los que más mejoran este mes (solo mejoras reales, frente a sí mismos). */
 export function masMejoran(jugadores: Jugador[], resumen: Map<string, ResumenJugador>, max = 3): Jugador[] {
   return jugadores
-    .filter((j) => (resumen.get(j.id)?.tendencia ?? 0) > 0.05)
+    .filter((j) => (resumen.get(j.id)?.tendencia ?? 0) > 0.1) /* escala 0–10 */
     .sort((a, b) => resumen.get(b.id)!.tendencia! - resumen.get(a.id)!.tendencia!)
     .slice(0, max)
 }

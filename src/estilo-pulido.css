@@ -396,9 +396,7 @@
 .areas-items {
   display: grid;
   gap: 14px;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
+  margin-top: 6px;
 }
 @media (min-width: 760px) {
   .areas-items {
@@ -492,4 +490,146 @@
 }
 .chip-item .chip-btn:not(.on) + .chip-quitar {
   color: var(--text-2);
+}
+
+/* ═════════════ Evaluación: barrita de 0 a 10 por aspecto ═════════════ */
+.eval-barras {
+  gap: 10px;
+}
+.eval-barras > li {
+  padding: 14px 16px 12px;
+  border-radius: 18px;
+  background: var(--surface-2);
+}
+.eval-item-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.eval-barras .eval-item-nombre {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 650;
+}
+.eval-valor {
+  min-width: 48px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  text-align: center;
+  font-family: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', system-ui, sans-serif;
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: #ffffff;
+  background: var(--text);
+  transition: background var(--anim);
+}
+.eval-valor.vacio {
+  color: var(--text-3);
+  background: var(--surface);
+}
+.eval-valor.n1 { background: var(--n1); }
+.eval-valor.n2 { background: var(--n2); }
+.eval-valor.n3 { background: var(--n3); }
+.eval-valor.n4 { background: var(--n4); }
+.eval-valor.n5 { background: var(--n5); }
+
+/* La barrita: pista gruesa que se rellena con el color de la nota y tirador grande para el dedo */
+.barra-nota {
+  --color: var(--text);
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 36px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+.barra-nota.n1 { --color: var(--n1); }
+.barra-nota.n2 { --color: var(--n2); }
+.barra-nota.n3 { --color: var(--n3); }
+.barra-nota.n4 { --color: var(--n4); }
+.barra-nota.n5 { --color: var(--n5); }
+.barra-nota.vacia { --color: transparent; }
+.barra-nota::-webkit-slider-runnable-track {
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--color) 0 var(--pct), var(--line-2) var(--pct) 100%);
+}
+.barra-nota::-moz-range-track {
+  height: 12px;
+  border-radius: 999px;
+  background: var(--line-2);
+}
+.barra-nota::-moz-range-progress {
+  height: 12px;
+  border-radius: 999px;
+  background: var(--color);
+}
+.barra-nota::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 30px;
+  height: 30px;
+  margin-top: -9px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 3px solid var(--color);
+  box-shadow: 0 3px 10px rgba(16, 32, 24, 0.25);
+  transition: transform 120ms ease;
+}
+.barra-nota::-moz-range-thumb {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 3px solid var(--color);
+  box-shadow: 0 3px 10px rgba(16, 32, 24, 0.25);
+}
+/* Sin valorar: tirador hueco y discreto, para que se vea que aún no hay nota */
+.barra-nota.vacia::-webkit-slider-thumb {
+  border-color: var(--line-2);
+  background: var(--surface);
+}
+.barra-nota.vacia::-moz-range-thumb {
+  border-color: var(--line-2);
+  background: var(--surface);
+}
+.barra-nota:active::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+.barra-nota:focus-visible {
+  outline: none;
+}
+.barra-nota:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 25%, transparent), 0 3px 10px rgba(16, 32, 24, 0.25);
+}
+.barra-escala {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 9px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.barra-escala span {
+  width: 12px;
+  text-align: center;
+}
+.eval-item-pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+  margin-top: 4px;
+}
+.eval-barras > li.sin-valor .eval-item-pie .sub {
+  font-style: italic;
 }

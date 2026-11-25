@@ -183,7 +183,10 @@ export type ContextoEvaluacion = 'partido' | 'entrenamiento' | 'trimestral'
 
 export interface Puntuacion {
   itemId: string
-  valor: 1 | 2 | 3 | 4 | 5
+  /** Con escala 10: de 0 a 10. Sin escala (notas antiguas): de 1 a 5, se leen ×2 (ver nota10). */
+  valor: number
+  /** 10 = nota de la barrita 0–10. Las notas antiguas no la llevan. */
+  escala?: 10
 }
 
 export interface Evaluacion extends Meta {
