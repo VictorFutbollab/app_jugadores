@@ -287,3 +287,209 @@
     transform: none !important;
   }
 }
+
+/* ═════════════ Evaluación rápida: preparar la sesión ═════════════ */
+.bloque-tit-fila {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.contador-sel {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.atajos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+
+/* Jugadores: tarjetas que se marcan con un toque */
+.sel-jugadores {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+  gap: 8px;
+}
+.jug-sel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 10px;
+  border: 1.5px solid var(--line-2);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--anim), background var(--anim), transform 120ms ease;
+}
+.jug-sel:hover {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--line-2));
+}
+.jug-sel:active {
+  transform: scale(0.98);
+}
+.jug-sel.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+.jug-sel-dorsal {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--surface-2);
+  font-family: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 1rem;
+  transition: background var(--anim), color var(--anim);
+}
+.jug-sel.on .jug-sel-dorsal {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.jug-sel-nombre {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 0.92rem;
+  line-height: 1.2;
+}
+.jug-sel-estado {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--warn);
+}
+.jug-sel-check {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-2);
+  color: var(--accent-ink);
+  transition: background var(--anim), border-color var(--anim);
+}
+.jug-sel.on .jug-sel-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Qué vas a observar: las cuatro áreas a la vista, con "Añadir" */
+.areas-items {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+@media (min-width: 760px) {
+  .areas-items {
+    grid-template-columns: 1fr 1fr;
+    column-gap: 24px;
+  }
+}
+.areas-items .grupo-items {
+  margin: 0;
+}
+.areas-items .grupo-items h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+.areas-items .grupo-items h3 i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.chip-item {
+  display: inline-flex;
+  align-items: center;
+}
+.chip-item.propio .chip-btn {
+  padding-right: 30px;
+}
+.chip-quitar {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-left: -27px;
+  border-radius: 50%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+}
+.chip-quitar:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.08);
+}
+.chip-anadir {
+  border-style: dashed !important;
+  background: transparent !important;
+  color: var(--accent-text) !important;
+  font-weight: 650;
+}
+.anadir-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.anadir-item input {
+  flex: 1 1 200px;
+  min-height: 46px;
+  padding: 0 12px;
+  border-radius: 14px;
+  border: 1.5px solid var(--accent);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--anillo, none);
+}
+.anadir-item input:focus {
+  outline: none;
+}
+
+/* Chips dentro de una tarjeta blanca: fondo suave y filo, para que se lean como botones */
+[data-estilo='v2'][data-visual='cesped'] .bloque .chip-btn:not(.on),
+[data-estilo='v2'][data-visual='cesped'] .seccion .chip-btn:not(.on) {
+  background: var(--surface-2);
+  border-color: var(--line);
+  color: var(--text);
+}
+[data-estilo='v2'][data-visual='cesped'] .bloque .chip-btn:not(.on):not(:disabled):hover,
+[data-estilo='v2'][data-visual='cesped'] .seccion .chip-btn:not(.on):not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--line-2));
+}
+[data-estilo='v2'][data-visual='cesped'] .bloque .chip-btn.chip-anadir {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+/* La × de un campo propio: visible tanto marcado como sin marcar */
+.chip-item .chip-btn.on + .chip-quitar {
+  color: var(--bg);
+}
+.chip-item .chip-btn:not(.on) + .chip-quitar {
+  color: var(--text-2);
+}

@@ -3,12 +3,15 @@ import { Icon } from '../ui/Icon'
 import { useApp } from '../state/store'
 import { ir } from '../state/router'
 import { Avatar, Tendencia } from '../ui/components'
-import { AREAS, AREA_COLOR, AREA_CORTO, POSICION_NOMBRE, num1, uid } from '../logic/format'
+import { AREAS, AREA_COLOR, AREA_CORTO, ESTADO_INFO, POSICION_NOMBRE, num1, uid } from '../logic/format'
+import { accionesEntrenador } from '../logic/permisos'
 import { puedeEvaluar, tieneConsentimientoFicha } from '../logic/privacy'
 import { itemsAplicables, resumenJugador } from '../logic/stats'
-import type { ContextoEvaluacion, Evaluacion, ItemEvaluacion, Jugador, Puntuacion } from '../model/types'
+import type { Area, ContextoEvaluacion, Evaluacion, ItemEvaluacion, Jugador, Puntuacion } from '../model/types'
 
-const MAX_ITEMS = 4
+const MAX_ITEMS = 6
+/** Ejemplo para el campo de "Añadir" de cada área. */
+const EJEMPLO_AREA: Record<Area, string> = { tecnica: 'Tiro con la izquierda', tactica: 'Basculación', fisica: 'Salto', mental: 'Actitud en el banquillo' }
 const SUGERIDOS = ['tac-presion', 'tec-pase-corto', 'men-concentracion']
 
 /** Plantillas de un toque (como en SkillShark o TeamGenius): sin elegir ítem a ítem cada vez. */
@@ -24,15 +27,21 @@ type Fase = 'preparar' | 'evaluar' | 'fin'
 
 export function EvaluacionRapida() {
   const app = useApp()
-  const { ds, jugadoresVisibles, estadoDe, yo } = app
+  const { ds, jugadoresVisibles, estadoDe, yo, tipoCuenta, puedeEditar } = app
   const [fase, setFase] = useState<Fase>('preparar')
   const [contexto, setContexto] = useState<ContextoEvaluacion>('partido')
   const [itemIds, setItemIds] = useState<string[]>(SUGERIDOS)
   const candidatos = useMemo(() => jugadoresVisibles.filter(tieneConsentimientoFicha).sort((a, b) => a.dorsal - b.dorsal), [jugadoresVisibles])
-  const [sel, setSel] = useState<Set<string>>(() => new Set(candidatos.filter((j) => (estadoDe(j.id)?.tipo ?? 'disponible') === 'disponible').map((j) => j.id)))
+  // Todos desmarcados: el entrenador elige a quién ha visto hoy.
+  const [sel, setSel] = useState<Set<string>>(() => new Set())
   const sinConsent = jugadoresVisibles.length - candidatos.length
   const sesion = useRef({ id: uid(), inicio: 0, fin: 0 })
   const [antes, setAntes] = useState<Map<string, number | null>>(new Map())
+  // Añadir un ítem propio: qué área está abierta, el texto y el estado del guardado.
+  const [anadiendo, setAnadiendo] = useState<Area | null>(null)
+  const [nuevoNombre, setNuevoNombre] = useState('')
+  const [guardandoItem, setGuardandoItem] = useState(false)
+  const [avisoItem, setAvisoItem] = useState<string | null>(null)
 
   if (!puedeEvaluar(yo)) {
     return <p className="vacio">No tienes permiso para evaluar. Pídeselo al entrenador principal.</p>
@@ -40,6 +49,7 @@ export function EvaluacionRapida() {
 
   const items = itemIds.map((id) => ds.items.find((i) => i.id === id)!).filter(Boolean)
   const jugadores = candidatos.filter((j) => sel.has(j.id))
+  const puedeAnadirItems = accionesEntrenador({ tipoCuenta, puedeEditar }).editarEquipo
 
   if (fase === 'evaluar') {
     return (
@@ -69,7 +79,38 @@ export function EvaluacionRapida() {
       else n.add(id)
       return n
     })
-  const campo = ds.items.filter((i) => i.activo && i.ambito !== 'portero')
+  const disponible = (j: Jugador) => (estadoDe(j.id)?.tipo ?? 'disponible') === 'disponible'
+  const campo = ds.items.filter((i) => i.activo && !i.eliminadoEn && i.ambito !== 'portero')
+
+  const abrirAnadir = (a: Area) => {
+    setAnadiendo(a)
+    setNuevoNombre('')
+    setAvisoItem(null)
+  }
+  const guardarItem = async () => {
+    if (!anadiendo || !nuevoNombre.trim()) return
+    setGuardandoItem(true)
+    setAvisoItem(null)
+    try {
+      const id = await app.anadirItemPropio(anadiendo, nuevoNombre)
+      // Recién creado: se marca para esta sesión si cabe.
+      setItemIds((xs) => (xs.includes(id) || xs.length >= MAX_ITEMS ? xs : [...xs, id]))
+      setAnadiendo(null)
+      setNuevoNombre('')
+    } catch (e) {
+      setAvisoItem(`No se ha guardado: ${(e as Error).message}`)
+    } finally {
+      setGuardandoItem(false)
+    }
+  }
+  const quitarItem = async (id: string) => {
+    setItemIds((xs) => xs.filter((x) => x !== id))
+    try {
+      await app.quitarItemPropio(id)
+    } catch (e) {
+      setAvisoItem(`No se ha quitado: ${(e as Error).message}`)
+    }
+  }
 
   return (
     <div className="eval-prep">
@@ -95,7 +136,57 @@ export function EvaluacionRapida() {
       </section>
 
       <section className="bloque">
-        <h2>Qué vas a observar</h2>
+        <div className="bloque-tit-fila">
+          <h2>Jugadores</h2>
+          <span className="contador-sel num">
+            {sel.size} de {candidatos.length}
+          </span>
+        </div>
+        <div className="atajos" role="group" aria-label="Selección rápida">
+          <button type="button" className="chip-btn" onClick={() => setSel(new Set(candidatos.map((j) => j.id)))}>
+            Todos
+          </button>
+          <button type="button" className="chip-btn" onClick={() => setSel(new Set(candidatos.filter(disponible).map((j) => j.id)))}>
+            Solo disponibles
+          </button>
+          <button type="button" className="chip-btn" onClick={() => setSel(new Set())} disabled={sel.size === 0}>
+            Ninguno
+          </button>
+        </div>
+        {candidatos.length === 0 ? (
+          <p className="sub">Todavía no hay jugadores con consentimiento para evaluar.</p>
+        ) : (
+          <ul className="sel-jugadores">
+            {candidatos.map((j) => {
+              const est = estadoDe(j.id)?.tipo ?? 'disponible'
+              const on = sel.has(j.id)
+              return (
+                <li key={j.id}>
+                  <button type="button" className={`jug-sel ${on ? 'on' : ''}`} aria-pressed={on} onClick={() => toggleJ(j.id)}>
+                    <span className="jug-sel-dorsal num">{j.dorsal}</span>
+                    <span className="jug-sel-nombre">
+                      {j.nombre} {j.apellidos.split(' ')[0]}
+                      {est !== 'disponible' && <span className="jug-sel-estado">{ESTADO_INFO[est].nombre}</span>}
+                    </span>
+                    <span className="jug-sel-check" aria-hidden>
+                      {on && <Icon n="check" size={16} />}
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+        {sinConsent > 0 && <p className="nota-pie con-icono"><Icon n="aviso" size={14} /> {sinConsent === 1 ? '1 jugador sin consentimiento no aparece.' : `${sinConsent} jugadores sin consentimiento no aparecen.`}</p>}
+      </section>
+
+      <section className="bloque">
+        <div className="bloque-tit-fila">
+          <h2>Qué vas a observar</h2>
+          <span className="contador-sel num">
+            {itemIds.length} de {MAX_ITEMS}
+          </span>
+        </div>
         <div className="plantillas" role="radiogroup" aria-label="Plantilla de evaluación">
           {PLANTILLAS.map((p) => {
             const on = p.items.length === itemIds.length && p.items.every((i) => itemIds.includes(i))
@@ -107,57 +198,80 @@ export function EvaluacionRapida() {
             )
           })}
         </div>
-        <details className="mas-opciones">
-          <summary>Elegir los ítems a mano ({itemIds.length}/{MAX_ITEMS})</summary>
-        {AREAS.map((a) => (
-          <div key={a} className="grupo-items">
-            <h3 style={{ color: AREA_COLOR[a] }}>{AREA_CORTO[a]}</h3>
-            <div className="chips">
-              {campo
-                .filter((i) => i.area === a)
-                .map((i) => (
-                  <button
-                    key={i.id}
-                    className={`chip-btn ${itemIds.includes(i.id) ? 'on' : ''}`}
-                    aria-pressed={itemIds.includes(i.id)}
-                    disabled={!itemIds.includes(i.id) && itemIds.length >= MAX_ITEMS}
-                    onClick={() => toggleItem(i.id)}
-                    title={i.descripcion}
-                  >
-                    {i.nombre}
-                  </button>
-                ))}
-            </div>
-          </div>
-        ))}
-        <p className="nota-pie">A los porteros se les cambian los ítems de campo por ítems de portero.</p>
-        </details>
-      </section>
 
-      <section className="bloque">
-        <h2>Jugadores</h2>
-        <p className="sub">
-          {sel.size === candidatos.length ? `Todos (${sel.size})` : `${sel.size} de ${candidatos.length} seleccionados`}. Los lesionados, enfermos y sancionados vienen desmarcados.
+        <div className="areas-items">
+          {AREAS.map((a) => (
+            <div key={a} className="grupo-items">
+              <h3>
+                <i style={{ background: AREA_COLOR[a] }} aria-hidden /> {AREA_CORTO[a]}
+              </h3>
+              <div className="chips">
+                {campo
+                  .filter((i) => i.area === a)
+                  .map((i) => {
+                    const on = itemIds.includes(i.id)
+                    const propio = i.id.startsWith('pro-')
+                    return (
+                      <span key={i.id} className={`chip-item ${propio ? 'propio' : ''}`}>
+                        <button
+                          type="button"
+                          className={`chip-btn ${on ? 'on' : ''}`}
+                          aria-pressed={on}
+                          disabled={!on && itemIds.length >= MAX_ITEMS}
+                          onClick={() => toggleItem(i.id)}
+                          title={i.descripcion}
+                        >
+                          {i.nombre}
+                        </button>
+                        {propio && puedeAnadirItems && (
+                          <button type="button" className="chip-quitar" aria-label={`Quitar ${i.nombre}`} title="Quitar de la lista" onClick={() => quitarItem(i.id)}>
+                            <Icon n="cerrar" size={12} />
+                          </button>
+                        )}
+                      </span>
+                    )
+                  })}
+                {puedeAnadirItems && anadiendo !== a && (
+                  <button type="button" className="chip-btn chip-anadir" onClick={() => abrirAnadir(a)}>
+                    <Icon n="mas" size={14} /> Añadir
+                  </button>
+                )}
+              </div>
+              {anadiendo === a && (
+                <form
+                  className="anadir-item"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    void guardarItem()
+                  }}
+                >
+                  <input
+                    autoFocus
+                    value={nuevoNombre}
+                    maxLength={40}
+                    placeholder={`Nuevo en ${AREA_CORTO[a]} (p. ej. ${EJEMPLO_AREA[a]})`}
+                    aria-label={`Nuevo campo de ${AREA_CORTO[a]}`}
+                    onChange={(e) => setNuevoNombre(e.target.value)}
+                  />
+                  <button type="submit" className="btn primario" disabled={!nuevoNombre.trim() || guardandoItem}>
+                    {guardandoItem ? 'Guardando…' : 'Guardar'}
+                  </button>
+                  <button type="button" className="btn" onClick={() => setAnadiendo(null)}>
+                    Cancelar
+                  </button>
+                </form>
+              )}
+            </div>
+          ))}
+        </div>
+        {avisoItem && (
+          <p className="error" role="alert">
+            {avisoItem}
+          </p>
+        )}
+        <p className="nota-pie">
+          Elige hasta {MAX_ITEMS} por sesión.{puedeAnadirItems ? ' Lo que añadas se guarda en el equipo y sirve para las próximas evaluaciones.' : ''} A los porteros se les cambian los ítems de campo por ítems de portero.
         </p>
-        <details className="mas-opciones">
-          <summary>Cambiar jugadores</summary>
-        <ul className="lista-sel">
-          {candidatos.map((j) => {
-            const est = estadoDe(j.id)?.tipo ?? 'disponible'
-            return (
-              <li key={j.id}>
-                <label>
-                  <input type="checkbox" checked={sel.has(j.id)} onChange={() => toggleJ(j.id)} />
-                  <span className="num dorsal-mini">{j.dorsal}</span>
-                  {j.nombre} {j.apellidos.split(' ')[0]}
-                  {est !== 'disponible' && <span className="sub"> · {est}</span>}
-                </label>
-              </li>
-            )
-          })}
-        </ul>
-        </details>
-        {sinConsent > 0 && <p className="nota-pie con-icono"><Icon n="aviso" size={14} /> {sinConsent === 1 ? '1 jugador sin consentimiento no aparece.' : `${sinConsent} jugadores sin consentimiento no aparecen.`}</p>}
       </section>
 
       <div className="barra-accion">
@@ -170,7 +284,7 @@ export function EvaluacionRapida() {
             setFase('evaluar')
           }}
         >
-          Empezar · {jugadores.length} jugadores × {items.length} ítems
+          {!jugadores.length ? 'Marca los jugadores que vas a evaluar' : !items.length ? 'Elige qué vas a observar' : `Empezar · ${jugadores.length} jugadores × ${items.length} ítems`}
         </button>
       </div>
     </div>

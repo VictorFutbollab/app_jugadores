@@ -5,7 +5,10 @@ import * as DB from '../db/db'
 import * as R from '../db/remote'
 import { errorLegible, supabase, supabaseConfigurado } from '../db/supabase'
 import * as SC from '../db/offline'
-import type { Consentimiento, Cuenta, Equipo, Estado, Evaluacion, Jugador, MiembroEquipo } from '../model/types'
+import type { Consentimiento, Cuenta, Equipo, Estado, Evaluacion, ItemEvaluacion, Jugador, MiembroEquipo } from '../model/types'
+
+/** Id corto y único para un ítem propio. */
+const uidCorto = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 10))
 import { datosExternos, resumenJugador, type DatosExternos, type ResumenJugador } from '../logic/stats'
 import { minimizar } from '../logic/privacy'
 import { quedaAlgunAdmin } from '../logic/admin'
@@ -99,6 +102,10 @@ interface Ctx {
   retirarConsentimiento: (jugadorId: string) => Promise<void>
   /** Borra la cuenta (eliminar_mi_cuenta) y cierra la sesión. */
   eliminarCuenta: () => Promise<void>
+  /** Añade un ítem de evaluación propio al equipo activo (se guarda en el equipo). Devuelve su id. */
+  anadirItemPropio: (area: ItemEvaluacion['area'], nombre: string) => Promise<string>
+  /** Quita un ítem propio de la lista (queda inactivo: las notas antiguas conservan su nombre). */
+  quitarItemPropio: (id: string) => Promise<void>
 }
 
 const C = createContext<Ctx | null>(null)
@@ -113,13 +120,16 @@ function delEquipo(todo: Dataset, eq: string): Dataset {
   const jugadores = todo.jugadores.filter((j) => j.equipoId === eq)
   const ids = new Set(jugadores.map((j) => j.id))
   const deJugador = <T extends { jugadorId: string }>(xs: T[]) => xs.filter((x) => ids.has(x.jugadorId))
+  // Ítems que el entrenador ha añadido al equipo (guardados dentro del equipo).
+  const propios = (todo.equipos.find((e) => e.id === eq)?.itemsPropios ?? []).map((i) => ({ ...i, equipoId: eq }))
+  const yaIds = new Set(todo.items.map((i) => i.id))
   return {
     usuarios: todo.usuarios,
     miembros: todo.miembros.filter((m) => m.equipoId === eq),
     equipos: todo.equipos.filter((e) => e.id === eq),
     jugadores,
     estados: deJugador(todo.estados),
-    items: todo.items.filter((i) => i.equipoId == null || i.equipoId === eq),
+    items: [...todo.items.filter((i) => i.equipoId == null || i.equipoId === eq), ...propios.filter((i) => !yaIds.has(i.id))],
     evaluaciones: deJugador(todo.evaluaciones),
     pruebas: deJugador(todo.pruebas),
     notas: deJugador(todo.notas),
@@ -595,6 +605,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
       limpiar()
       ir({ nombre: 'inicio' }, true)
+    },
+    async anadirItemPropio(area, nombre) {
+      const eq = todo.equipos.find((e) => e.id === equipoActivo)
+      if (!eq) throw new Error('No hay equipo activo.')
+      const limpio = nombre.trim().replace(/\s+/g, ' ').slice(0, 40)
+      if (!limpio) throw new Error('Escribe el nombre.')
+      const propios = eq.itemsPropios ?? []
+      const repetido = [...ds.items, ...propios].find((i) => i.activo && i.area === area && i.nombre.toLowerCase() === limpio.toLowerCase())
+      if (repetido) return repetido.id
+      const ahora = new Date().toISOString()
+      const item: ItemEvaluacion = {
+        id: `pro-${uidCorto()}`,
+        equipoId: eq.id,
+        area,
+        nombre: limpio,
+        descripcion: 'Añadido por el entrenador',
+        edadMin: 0,
+        edadMax: 99,
+        ambito: 'todos',
+        activo: true,
+        creadoEn: ahora,
+        actualizadoEn: ahora,
+        creadoPor: cuenta.id,
+      }
+      await yRecargar(() => R.guardar('equipos', { ...eq, itemsPropios: [...propios, item], actualizadoEn: ahora }))
+      return item.id
+    },
+    async quitarItemPropio(id) {
+      const eq = todo.equipos.find((e) => e.id === equipoActivo)
+      if (!eq) return
+      const ahora = new Date().toISOString()
+      const itemsPropios = (eq.itemsPropios ?? []).map((i) => (i.id === id ? { ...i, activo: false, actualizadoEn: ahora } : i))
+      await yRecargar(() => R.guardar('equipos', { ...eq, itemsPropios, actualizadoEn: ahora }))
     },
     async cargarEjemplo() {
       if (sinSenal()) throw new Error(SC.MENSAJE_NECESITA_RED)

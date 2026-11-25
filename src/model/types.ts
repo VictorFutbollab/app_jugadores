@@ -89,6 +89,12 @@ export interface Equipo extends Meta {
   modalidad: Modalidad
   edadMin: number
   edadMax: number
+  /**
+   * Ítems de evaluación que el entrenador añade en "Qué vas a observar". Se guardan en el
+   * propio equipo (inf_guardar_equipo) y se usan igual que los de FutbolLab. Uno quitado
+   * queda con activo: false para que las notas antiguas sigan teniendo nombre.
+   */
+  itemsPropios?: ItemEvaluacion[]
 }
 
 export type Posicion = 'POR' | 'LD' | 'LI' | 'DFC' | 'MCD' | 'MC' | 'MCO' | 'ED' | 'EI' | 'DC'
