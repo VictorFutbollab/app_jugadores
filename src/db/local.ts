@@ -402,6 +402,46 @@ async function rpc(nombre: string, args: Record<string, unknown> = {}): Promise<
       escribir(a)
       return { data: null, error: null }
     }
+    // ── Cuenta y permisos (como en Supabase, en pequeño) ──
+    case 'mis_equipos': {
+      // Los equipos de la cuenta: los suyos de miembros (y todos, si es admin).
+      const admin = tabla(a, 'profiles').find((p) => p.id === a.sesion)?.role === 'admin'
+      const mios = new Set(tabla(a, 'miembros').filter((m) => m.usuario_id === a.sesion).map((m) => m.equipo_id))
+      return { data: tabla(a, 'equipos').filter((e) => admin || mios.has(e.id)).map((e) => ({ id: e.id, data: e.data })), error: null }
+    }
+    case 'puede_editar_equipo':
+      return { data: puedeGestionar(a, String(args.eq)), error: null }
+    case 'inf_retirar_consentimiento': {
+      const j = jugador()
+      if (!j) return { data: null, error: err('Jugador no encontrado') }
+      if (!puedeGestionar(a, String(j.equipo_id))) return { data: null, error: err('Solo el entrenador o un administrador pueden hacerlo', '42501') }
+      const d = j.data as Fila
+      const c = d.consentimiento as Fila | null
+      if (!c || c.retiradoEn) return { data: null, error: err('No hay una autorización vigente') }
+      // Sin autorización no se guardan la ficha ni la foto (como minimizar()).
+      j.data = { ...d, consentimiento: { ...c, retiradoEn: ahora() }, foto: null, fechaNacimiento: null, posiciones: [], pierna: null }
+      escribir(a)
+      return { data: null, error: null }
+    }
+    case 'eliminar_mi_cuenta': {
+      const yo = a.sesion
+      // Igual que el servidor: no se puede dejar sin entrenador principal un equipo con jugadores.
+      const bloquea = tabla(a, 'miembros').some(
+        (m) =>
+          m.usuario_id === yo &&
+          m.rol === 'entrenador_principal' &&
+          !tabla(a, 'miembros').some((o) => o.equipo_id === m.equipo_id && o.usuario_id !== yo && o.rol === 'entrenador_principal') &&
+          tabla(a, 'jugadores').some((j) => j.equipo_id === m.equipo_id),
+      )
+      if (bloquea) return { data: null, error: err('Eres el único entrenador principal de un equipo con jugadores. Nombra a otro entrenador principal o borra el equipo antes de eliminar tu cuenta.', 'P0001') }
+      a.tablas.miembros = tabla(a, 'miembros').filter((m) => m.usuario_id !== yo)
+      a.tablas.inf_miembros = tabla(a, 'inf_miembros').filter((m) => m.usuario_id !== yo)
+      a.tablas.profiles = tabla(a, 'profiles').filter((p) => p.id !== yo)
+      a.usuarios = a.usuarios.filter((u) => u.id !== yo)
+      a.sesion = null
+      escribir(a)
+      return { data: null, error: null }
+    }
     case 'admin_verificar_pin': {
       // En local el PIN está en .env.local (VITE_ADMIN_PIN_LOCAL); en Supabase lo comprueba la base de datos.
       const bueno = String(import.meta.env.VITE_ADMIN_PIN_LOCAL ?? '').trim()

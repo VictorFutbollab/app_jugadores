@@ -5,6 +5,7 @@ import { Avatar, Cabecera, Enlace, EstadoChip, Tendencia, Vacio } from '../ui/co
 import { AREAS, AREA_COLOR, AREA_CORTO, POSICION_ORDEN, num0, num1, pct } from '../logic/format'
 import { FLAGS } from '../config'
 import { href } from '../state/router'
+import { accionesEntrenador } from '../logic/permisos'
 import { tieneConsentimientoFicha } from '../logic/privacy'
 import type { Jugador, TipoEstado } from '../model/types'
 
@@ -16,10 +17,10 @@ const ORDENES: { id: Orden; nombre: string }[] = [
   { id: 'minutos', nombre: 'Minutos' },
   { id: 'asistencia', nombre: 'Asistencia' },
 ]
-type Filtro = 'todos' | 'disponibles' | 'no_disponibles' | 'favoritos' | 'sin_consentimiento'
+type Filtro = 'todos' | 'disponibles' | 'no_disponibles' | 'favoritos' | 'sin_consentimiento' | 'de_baja'
 
 export function Plantilla() {
-  const { jugadoresVisibles, resumen, externos, estadoDe, ds, yo } = useApp()
+  const { jugadoresVisibles, resumen, externos, estadoDe, ds, tipoCuenta, puedeEditar } = useApp()
   const [q, setQ] = useState('')
   const [orden, setOrden] = useState<Orden>('dorsal')
   const [filtro, setFiltro] = useState<Filtro>('todos')
@@ -27,7 +28,9 @@ export function Plantilla() {
   const lista = useMemo(() => {
     const t = q.trim().toLowerCase()
     const est = (j: Jugador): TipoEstado => estadoDe(j.id)?.tipo ?? 'disponible'
-    const filtrada = jugadoresVisibles.filter((j) => {
+    // "De baja": los archivados (siguen con su historial y se pueden reactivar desde Editar).
+    const base = filtro === 'de_baja' ? ds.jugadores.filter((j) => j.archivado && !j.eliminadoEn) : jugadoresVisibles
+    const filtrada = base.filter((j) => {
       if (t && !`${j.nombre} ${j.apellidos} ${j.dorsal}`.toLowerCase().includes(t)) return false
       if (filtro === 'disponibles') return est(j) === 'disponible'
       if (filtro === 'no_disponibles') return est(j) !== 'disponible'
@@ -48,19 +51,30 @@ export function Plantilla() {
       asistencia: (j) => desc(externos.get(j.id)?.asistenciaPct),
     }
     return [...filtrada].sort((a, b) => clave[orden](a) - clave[orden](b) || a.dorsal - b.dorsal)
-  }, [jugadoresVisibles, q, filtro, orden, resumen, externos, estadoDe])
+  }, [jugadoresVisibles, ds.jugadores, q, filtro, orden, resumen, externos, estadoDe])
 
   const equipo = ds.equipos[0]
   // Dar de alta: entrenador principal (y admin, que en el panel del entrenador cuenta como principal).
-  const puedeAnadir = yo.rol === 'entrenador_principal'
-  const anadir = puedeAnadir && (
-    <a className="btn primario btn-cabecera" href={href({ nombre: 'jugador-editar', id: 'nuevo' })} aria-label="Añadir jugador">
-      <Icon n="mas" size={18} /> <span className="btn-cabecera-txt">Añadir jugador</span>
-    </a>
+  // Lo decide la base de datos (puede_editar_equipo); aquí solo se enseña u oculta.
+  const acciones = accionesEntrenador({ tipoCuenta, puedeEditar })
+  const puedeAnadir = acciones.anadirJugador
+  const botones = (acciones.editarEquipo || acciones.anadirJugador) && (
+    <div className="cabecera-acciones">
+      {acciones.editarEquipo && (
+        <a className="btn btn-cabecera" href={href({ nombre: 'equipo', id: equipo.id })} aria-label="Editar equipo" title="Editar equipo">
+          <Icon n="lapiz" size={18} /> <span className="btn-cabecera-txt">Editar equipo</span>
+        </a>
+      )}
+      {acciones.anadirJugador && (
+        <a className="btn primario btn-cabecera" href={href({ nombre: 'jugador-editar', id: 'nuevo' })} aria-label="Añadir jugador" title="Añadir jugador">
+          <Icon n="mas" size={18} /> <span className="btn-cabecera-txt">Añadir jugador</span>
+        </a>
+      )}
+    </div>
   )
   return (
     <>
-      <Cabecera titulo="Plantilla" sub={`${equipo.nombre} · ${equipo.modalidad} · ${jugadoresVisibles.length} jugadores`} accion={anadir} />
+      <Cabecera titulo="Plantilla" sub={`${equipo.nombre} · ${equipo.modalidad} · ${jugadoresVisibles.length} jugadores`} accion={botones} />
       <div className="herramientas">
         <input className="buscar" type="search" placeholder="Buscar jugador" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar jugador" />
         <label className="ordenar">
@@ -82,6 +96,7 @@ export function Plantilla() {
             ['no_disponibles', 'No disponibles'],
             ['favoritos', 'Favoritos'],
             ['sin_consentimiento', 'Sin consentimiento'],
+            ...(puedeAnadir ? ([['de_baja', 'De baja']] as const) : []),
           ] as [Filtro, string][]
         ).map(([id, n]) => (
           <button key={id} role="radio" aria-checked={filtro === id} className={`filtro ${filtro === id ? 'on' : ''}`} onClick={() => setFiltro(id)}>
@@ -90,7 +105,7 @@ export function Plantilla() {
         ))}
       </div>
 
-      {jugadoresVisibles.length === 0 ? (
+      {jugadoresVisibles.length === 0 && filtro !== 'de_baja' ? (
         <Vacio>
           Aún no hay jugadores en la plantilla.
           {puedeAnadir && (
@@ -109,7 +124,7 @@ export function Plantilla() {
             const x = externos.get(j.id)!
             const ficha = tieneConsentimientoFicha(j)
             return (
-              <li key={j.id}>
+              <li key={j.id} className={acciones.editarJugador ? 'con-editar' : undefined}>
                 <Enlace to={{ nombre: 'jugador', id: j.id }} className="tarjeta">
                   <div className="tarjeta-top">
                     <Avatar j={j} size={52} />
@@ -141,6 +156,11 @@ export function Plantilla() {
                     <span className="chip aviso"><Icon n="aviso" size={13} /> Falta consentimiento</span>
                   )}
                 </Enlace>
+                {acciones.editarJugador && (
+                  <a className="tarjeta-editar" href={href({ nombre: 'jugador-editar', id: j.id })} aria-label={`Editar a ${j.nombre}`} title="Editar">
+                    <Icon n="lapiz" size={16} />
+                  </a>
+                )}
               </li>
             )
           })}

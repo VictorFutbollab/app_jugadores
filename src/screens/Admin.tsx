@@ -9,6 +9,8 @@ import { categoria } from '../data/categorias'
 import type { Errores } from '../auth/auth'
 import { ESTADO_INFO, POSICION_NOMBRE, POSICION_ORDEN, fechaCorta, fechaLarga, num1, uid } from '../logic/format'
 import { tieneConsentimientoFicha, validarConsentimiento } from '../logic/privacy'
+import { accionesEntrenador } from '../logic/permisos'
+import { prepararFoto } from '../auth/auth'
 import {
   FILTROS_ADMIN,
   ROLES,
@@ -404,9 +406,10 @@ export function EditarJugador({ id }: { id: string }) {
  * (el servidor lo vuelve a comprobar). Borrar todo sigue siendo solo del admin.
  */
 export function AdminJugador({ id, modo = 'admin' }: { id: string; modo?: 'admin' | 'entrenador' }) {
-  const { esAdmin, yo, ds, usuarioId, estadoDe, guardarJugador, guardarEstado, registrarConsentimiento, borrarJugador, exportarJugador } = useApp()
+  const { esAdmin, yo, ds, usuarioId, estadoDe, guardarJugador, guardarEstado, registrarConsentimiento, retirarConsentimiento, borrarJugador, exportarJugador, tipoCuenta, puedeEditar } = useApp()
   const enAdmin = modo === 'admin'
-  const permitido = enAdmin ? esAdmin : yo.rol === 'entrenador_principal'
+  // Entrenador: lo decide la base de datos (puede_editar_equipo); aquí solo se enseña u oculta.
+  const permitido = enAdmin ? esAdmin : accionesEntrenador({ tipoCuenta, puedeEditar }).editarJugador
   const nuevo = id === 'nuevo'
   const original = ds.jugadores.find((x) => x.id === id && !x.eliminadoEn)
   const equipoId = ds.equipos[0].id
@@ -451,11 +454,13 @@ export function AdminJugador({ id, modo = 'admin' }: { id: string; modo?: 'admin
   const [aviso, setAviso] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
   const [confirmarBorrar, setConfirmarBorrar] = useState(false)
+  const [confirmarRetirada, setConfirmarRetirada] = useState(false)
+  const [errFoto, setErrFoto] = useState<string | null>(null)
 
   // A dónde volver: el panel de admin, o la plantilla / la ficha del jugador en el panel del entrenador.
   const salida: Ruta = enAdmin ? { nombre: 'admin' } : original ? { nombre: 'jugador', id: original.id } : { nombre: 'plantilla' }
   if (!permitido) {
-    return enAdmin ? <SinPermiso /> : <SinPermiso titulo="Jugador" texto="Solo el entrenador principal o un administrador pueden dar de alta y editar jugadores." />
+    return enAdmin ? <SinPermiso /> : <SinPermiso titulo="Jugador" texto="Esto solo lo puede cambiar el entrenador." />
   }
   if (!nuevo && !original) {
     return (
@@ -526,6 +531,8 @@ export function AdminJugador({ id, modo = 'admin' }: { id: string; modo?: 'admin
       const firmado = limpio.consentimiento
       const yaVigente = original?.consentimiento && !original.consentimiento.retiradoEn
       if (firmado && !firmado.retiradoEn && !yaVigente) await registrarConsentimiento(limpio.id, firmado, limpio.fechaNacimiento ?? null)
+      // Retirada marcada en el formulario del admin: también va por su función (inf_retirar_consentimiento).
+      if (yaVigente && firmado?.retiradoEn) await retirarConsentimiento(limpio.id)
       const estadoLimpio: Estado = { ...est, vueltaPrevista: est.tipo === 'disponible' ? null : est.vueltaPrevista || null, nota: est.nota?.trim() }
       if (nuevo || JSON.stringify(estadoLimpio) !== JSON.stringify(estadoPrevio)) await guardarEstado(estadoLimpio)
       if (nuevo) ir(enAdmin ? { nombre: 'admin-jugador', id: limpio.id } : { nombre: 'jugador-editar', id: limpio.id }, true)
@@ -552,8 +559,37 @@ export function AdminJugador({ id, modo = 'admin' }: { id: string; modo?: 'admin
       return setAviso(`No se ha guardado: ${(e as Error).message}`)
     }
     setJ((x) => ({ ...x, archivado: valor }))
-    setAviso(valor ? 'Jugador archivado: ya no aparece en la plantilla ni en la evaluación.' : 'Jugador recuperado.')
+    if (enAdmin) setAviso(valor ? 'Jugador archivado: ya no aparece en la plantilla ni en la evaluación.' : 'Jugador recuperado.')
+    else setAviso(valor ? 'Jugador dado de baja: ya no aparece en la plantilla. Su historial se conserva.' : 'Jugador reactivado: vuelve a la plantilla.')
   }
+
+  /** Entrenador: la familia retira la autorización. Va directa al servidor (inf_retirar_consentimiento). */
+  const retirarAhora = async () => {
+    if (!original) return
+    try {
+      await retirarConsentimiento(original.id)
+    } catch (e) {
+      setConfirmarRetirada(false)
+      return setAviso(`No se ha guardado: ${(e as Error).message}`)
+    }
+    setConfirmarRetirada(false)
+    // Sin autorización no se guardan la ficha ni la foto: se quitan también del formulario.
+    setJ((x) => ({ ...x, consentimiento: x.consentimiento && { ...x.consentimiento, retiradoEn: new Date().toISOString() }, foto: null, fechaNacimiento: null, posiciones: [], pierna: null }))
+    setAviso('Autorización retirada: la ficha queda solo con nombre, dorsal y contacto.')
+  }
+
+  const elegirFoto = async (f: File | undefined) => {
+    if (!f) return
+    setErrFoto(null)
+    try {
+      set('foto', await prepararFoto(f))
+    } catch (e) {
+      setErrFoto((e as Error).message)
+    }
+  }
+  const fotosPermitidas = fichaPermitida && !!c?.alcance.fotos
+  // Una autorización ya registrada solo la cambia un admin; el entrenador solo puede anotar que la familia la retira.
+  const consentBloqueado = !enAdmin && !!original?.consentimiento && !original.consentimiento.retiradoEn && !!c && !c.retiradoEn
 
   return (
     <>
@@ -627,15 +663,48 @@ export function AdminJugador({ id, modo = 'admin' }: { id: string; modo?: 'admin
                 Registrar consentimiento
               </button>
             </>
+          ) : consentBloqueado ? (
+            <>
+              <dl className="dl">
+                <dt>Firma</dt>
+                <dd>
+                  {c.firmante} · {FIRMANTES.find(([v]) => v === c.firmanteTipo)?.[1]}
+                </dd>
+                <dt>Fecha</dt>
+                <dd>{fechaLarga(c.fecha)}</dd>
+                <dt>Autoriza</dt>
+                <dd>{[c.alcance.ficha && 'ficha y evaluaciones', c.alcance.fotos && 'fotos', c.alcance.notasVoz && 'notas de voz'].filter(Boolean).join(', ') || 'nada'}</dd>
+              </dl>
+              <p className="campo-ayuda">Una autorización ya registrada solo la puede cambiar un administrador del club.</p>
+              {!confirmarRetirada ? (
+                <button type="button" className="btn" onClick={() => setConfirmarRetirada(true)}>
+                  La familia la retira
+                </button>
+              ) : (
+                <div className="confirmar" role="alertdialog" aria-label="Confirmar retirada">
+                  <p>Se quitarán de la ficha la fecha de nacimiento, las posiciones, la pierna y la foto, y no se podrá evaluar. El historial no se borra.</p>
+                  <div className="botones">
+                    <button type="button" className="btn" onClick={() => setConfirmarRetirada(false)}>
+                      Cancelar
+                    </button>
+                    <button type="button" className="btn peligro" onClick={retirarAhora}>
+                      Sí, la retira
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           ) : c.retiradoEn ? (
             <>
               <p className="aviso-permiso">
                 Retirado el {fechaLarga(c.retiradoEn)}. Al guardar se eliminan de la ficha la fecha de nacimiento, las posiciones y la pierna.
               </p>
               <div className="botones">
-                <button type="button" className="btn" onClick={() => setConsent({ retiradoEn: null })}>
-                  Deshacer
-                </button>
+                {enAdmin && (
+                  <button type="button" className="btn" onClick={() => setConsent({ retiradoEn: null })}>
+                    Deshacer
+                  </button>
+                )}
                 <button type="button" className="btn primario" onClick={() => set('consentimiento', consentimientoNuevo())}>
                   Registrar uno nuevo
                 </button>
@@ -696,6 +765,26 @@ export function AdminJugador({ id, modo = 'admin' }: { id: string; modo?: 'admin
         <Seccion titulo="Ficha deportiva" resumen={resumenFicha}>
         <fieldset className="grupo plano" disabled={!fichaPermitida}>
           {!fichaPermitida && <p className="aviso-permiso">Necesita el consentimiento de ficha para guardar estos datos.</p>}
+          <div className="campo">
+            <span className="campo-et">Foto</span>
+            {fotosPermitidas ? (
+              <div className="foto-jugador">
+                {j.foto ? <img src={j.foto} alt={`Foto de ${j.nombre}`} className="avatar" width={64} height={64} /> : <span className="foto-jugador-vacia" aria-hidden><Icon n="camara" /></span>}
+                <label className="btn">
+                  <Icon n="camara" size={18} /> {j.foto ? 'Cambiar foto' : 'Subir foto'}
+                  <input type="file" accept="image/*" hidden onChange={(e) => { void elegirFoto(e.target.files?.[0]); e.target.value = '' }} />
+                </label>
+                {j.foto && (
+                  <button type="button" className="enlace pequeno" onClick={() => set('foto', null)}>
+                    Quitar foto
+                  </button>
+                )}
+              </div>
+            ) : (
+              <span className="campo-ayuda">Hace falta que la familia autorice las fotos.</span>
+            )}
+            {errFoto && <span className="campo-error" role="alert">{errFoto}</span>}
+          </div>
           <Campo etiqueta="Fecha de nacimiento">
             <input type="date" value={j.fechaNacimiento ?? ''} max={hoyISO()} onChange={(e) => set('fechaNacimiento', e.target.value || null)} />
           </Campo>
@@ -780,11 +869,13 @@ export function AdminJugador({ id, modo = 'admin' }: { id: string; modo?: 'admin
               </a>
             )}
             <button className="btn" onClick={() => archivar(!original.archivado)}>
-              {original.archivado ? 'Recuperar' : 'Archivar'}
+              {enAdmin ? (original.archivado ? 'Recuperar' : 'Archivar') : original.archivado ? 'Reactivar' : 'Dar de baja'}
             </button>
-            <button className="btn" onClick={() => exportarJugador(original.id)}>
-              <Icon n="descargar" size={18} /> Exportar datos
-            </button>
+            {(enAdmin || yo.rol === 'entrenador_principal') && (
+              <button className="btn" onClick={() => exportarJugador(original.id).catch((e: Error) => setAviso(`No se ha exportado: ${e.message}`))}>
+                <Icon n="descargar" size={18} /> Exportar datos
+              </button>
+            )}
             {enAdmin && !confirmarBorrar && (
               <button className="btn peligro" onClick={() => setConfirmarBorrar(true)}>
                 <Icon n="papelera" size={18} /> Borrar todo
@@ -792,8 +883,9 @@ export function AdminJugador({ id, modo = 'admin' }: { id: string; modo?: 'admin
             )}
           </div>
           <p className="nota-pie">
-            Archivar lo saca de la plantilla sin perder su historial (por ejemplo, si deja el equipo). Se puede recuperar.
-            {!enAdmin && ' Si la familia pide borrar sus datos, avisa a un administrador del club: él hace el borrado completo.'}
+            {enAdmin
+              ? 'Archivar lo saca de la plantilla sin perder su historial (por ejemplo, si deja el equipo). Se puede recuperar.'
+              : 'Dar de baja lo saca de la plantilla sin perder su historial (por ejemplo, si deja el equipo). Se reactiva desde el filtro "De baja". Si la familia pide borrar sus datos, avisa a un administrador del club: él hace el borrado completo.'}
           </p>
           {enAdmin && confirmarBorrar && (
             <div className="confirmar" role="alertdialog" aria-label="Confirmar borrado">

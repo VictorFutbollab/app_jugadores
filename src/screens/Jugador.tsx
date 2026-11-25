@@ -6,6 +6,7 @@ import { Avatar, BarrasArea, Cabecera, Dato, Enlace, EstadoChip, Tendencia, Vaci
 import { RadarAreas } from '../ui/RadarAreas'
 import { AREAS, AREA_COLOR, AREA_CORTO, POSICION_NOMBRE, edad, fechaCorta, fechaLarga, num0, num1, pct } from '../logic/format'
 import { FLAGS } from '../config'
+import { accionesEntrenador } from '../logic/permisos'
 import { puedeVerFicha, puedeVerNota, tieneConsentimientoFicha, validarConsentimiento } from '../logic/privacy'
 import type { Consentimiento, FirmanteTipo, Jugador as TJugador } from '../model/types'
 
@@ -39,7 +40,7 @@ export function Jugador({ id, pestana = 'resumen' }: { id: string; pestana?: str
   const ficha = tieneConsentimientoFicha(j)
   const fav = (
     <>
-      {yo.rol === 'entrenador_principal' && (
+      {accionesEntrenador({ tipoCuenta: app.tipoCuenta, puedeEditar: app.puedeEditar }).editarJugador && (
         <a className="icon-btn" href={href({ nombre: 'jugador-editar', id: j.id })} aria-label="Editar jugador" title="Editar jugador">
           <Icon n="lapiz" />
         </a>

@@ -202,6 +202,46 @@ export async function registrarConsentimiento(id: string, c: Consentimiento, fec
   ok(await supabase.rpc('jugador_registrar_consentimiento', { jid: id, c, fecha_nacimiento: fechaNacimiento ?? '' }))
 }
 
+/** La familia retira la autorización (función compartida con Informes; el servidor comprueba el rol). */
+export async function retirarConsentimiento(id: string) {
+  ok(await supabase.rpc('inf_retirar_consentimiento', { jid: id }))
+}
+
+// ───────────── Cuenta y equipos de la cuenta (compartido con Informes) ─────────────
+
+/**
+ * Equipos de la cuenta según el servidor (mis_equipos): incluye los que la cuenta creó
+ * aunque no esté en `miembros`. Se acepta la fila en forma { id, data } o con los campos sueltos.
+ */
+export async function misEquipos(): Promise<Equipo[]> {
+  const filas = (ok(await supabase.rpc('mis_equipos')) ?? []) as Fila[]
+  const out: Equipo[] = []
+  for (const f of filas) {
+    // Los equipos en los que la cuenta es familia o delegado no son suyos: van por equiposFamilia.
+    if (f.rol === 'familia' || f.rol === 'anotador') continue
+    const id = (f.id ?? f.equipo_id) as string | undefined
+    if (!id) continue
+    const data = (f.data && typeof f.data === 'object' ? f.data : f) as Record<string, unknown>
+    out.push({ ...data, id, nombre: String(data.nombre ?? f.nombre ?? 'Equipo') } as unknown as Equipo)
+  }
+  return out
+}
+
+/** ¿Puede esta cuenta crear o editar jugadores y datos de este equipo? (admin, o manager entrenador del equipo) */
+export async function puedeEditarEquipo(equipoId: string): Promise<boolean> {
+  return !!ok(await supabase.rpc('puede_editar_equipo', { eq: equipoId }))
+}
+
+/**
+ * Borra la cuenta y sus datos (lo exigen Apple y Google). Si es el único entrenador
+ * principal de un equipo con jugadores, el servidor lo impide con un mensaje en español.
+ */
+export async function eliminarMiCuenta() {
+  const r = await supabase.rpc('eliminar_mi_cuenta')
+  // El mensaje del servidor se muestra tal cual (no se "traduce").
+  if (r.error) throw new Error((r.error as { message?: string }).message || 'No se ha podido eliminar la cuenta.')
+}
+
 // ───────────── Administración (el servidor exige rol admin en cada una) ─────────────
 
 /**

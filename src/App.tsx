@@ -7,6 +7,7 @@ import { href, ir, useRuta, type Ruta } from './state/router'
 import { Inicio } from './screens/Inicio'
 import { Plantilla } from './screens/Plantilla'
 import { APP_NAME_CORTO, FLAGS } from './config'
+import { accionesEntrenador } from './logic/permisos'
 import { PanelFamilia, UnirseConCodigo } from './screens/Familia'
 
 // Carga diferida: estas pantallas (y los gráficos que usan) solo se descargan al abrirlas.
@@ -16,6 +17,7 @@ const Evolucion = lazy(() => import('./screens/Evolucion').then((m) => ({ defaul
 const Perfil = lazy(() => import('./screens/Perfil').then((m) => ({ default: m.Perfil })))
 const Admin = lazy(() => import('./screens/Admin').then((m) => ({ default: m.Admin })))
 const EditarJugador = lazy(() => import('./screens/Admin').then((m) => ({ default: m.EditarJugador })))
+const EquipoForm = lazy(() => import('./screens/Equipo').then((m) => ({ default: m.EquipoForm })))
 
 function Pantalla({ r }: { r: Ruta }) {
   switch (r.nombre) {
@@ -25,6 +27,8 @@ function Pantalla({ r }: { r: Ruta }) {
       return <Jugador id={r.id} pestana={r.pestana} />
     case 'jugador-editar':
       return <EditarJugador id={r.id} />
+    case 'equipo':
+      return <EquipoForm id={r.id} />
     case 'evaluar':
       return <EvaluacionRapida />
     case 'evolucion':
@@ -43,7 +47,7 @@ function Pantalla({ r }: { r: Ruta }) {
 type Tab = { r: Ruta; nombre: string; icono: NombreIcono; activo: (r: Ruta) => boolean; clase?: string }
 const TABS: Tab[] = [
   { r: { nombre: 'inicio' }, nombre: 'Inicio', icono: 'inicio', activo: (r) => r.nombre === 'inicio' },
-  { r: { nombre: 'plantilla' }, nombre: 'Plantilla', icono: 'plantilla', activo: (r) => r.nombre === 'plantilla' || r.nombre === 'jugador' || r.nombre === 'jugador-editar' },
+  { r: { nombre: 'plantilla' }, nombre: 'Plantilla', icono: 'plantilla', activo: (r) => r.nombre === 'plantilla' || r.nombre === 'jugador' || r.nombre === 'jugador-editar' || r.nombre === 'equipo' },
   { r: { nombre: 'evolucion' }, nombre: 'Evolución', icono: 'evolucion', activo: (r) => r.nombre === 'evolucion' },
   { r: { nombre: 'perfil' }, nombre: 'Perfil', icono: 'perfil', activo: (r) => r.nombre === 'perfil' },
 ]
@@ -80,6 +84,7 @@ function BarraSuperior({ enAdmin }: { enAdmin: boolean }) {
 function SinEquipo() {
   const r = useRuta()
   const { cuenta, cerrarSesion, equiposInf, tipoCuenta } = useApp()
+  const puedeCrear = accionesEntrenador({ tipoCuenta, puedeEditar: false }).crearEquipo
   let cuerpo
   if (r.nombre === 'perfil') {
     cuerpo = (
@@ -87,21 +92,33 @@ function SinEquipo() {
         <Perfil />
       </Suspense>
     )
-  } else if (equiposInf.length > 0) {
+  } else if (r.nombre === 'equipo') {
+    cuerpo = (
+      <Suspense fallback={null}>
+        <EquipoForm id="nuevo" />
+      </Suspense>
+    )
+  } else if (equiposInf.length > 0 && !puedeCrear) {
     cuerpo = <PanelFamilia />
   } else {
     cuerpo = (
       <>
         <section className="bloque" style={{ marginTop: 24 }}>
           <h2>Hola, {cuenta.nombre.split(' ')[0] || cuenta.usuario}</h2>
-          {tipoCuenta === 'familia' ? (
-            <p>Tu cuenta FutbolLab está creada. Para ver tu equipo, escribe el código que te ha dado el entrenador.</p>
+          {puedeCrear ? (
+            <>
+              <p>
+                Tu cuenta FutbolLab está creada. Crea tu equipo aquí (o en FutbolLab Informes: es la misma cuenta) y añade a tus jugadores. Te registraste con <strong>{cuenta.email}</strong>.
+              </p>
+              <a className="btn primario ancho" href={href({ nombre: 'equipo', id: 'nuevo' })}>
+                <Icon n="mas" /> Crear equipo
+              </a>
+            </>
           ) : (
-            <p>
-              Tu cuenta FutbolLab está creada. Crea tu equipo en FutbolLab Informes o pide a un administrador del club que te añada; cuando lo haga, verás aquí a tus jugadores. Te registraste con <strong>{cuenta.email}</strong>.
-            </p>
+            <p>Tu cuenta FutbolLab está creada. Los equipos los crea el entrenador: para ver el tuyo, escribe el código que te ha dado.</p>
           )}
         </section>
+        {equiposInf.length > 0 && <PanelFamilia />}
         <section className="bloque">
           <h2>{tipoCuenta === 'familia' ? 'Unirme a un equipo' : '¿Tienes un código de equipo?'}</h2>
           <UnirseConCodigo />

@@ -255,6 +255,40 @@ main {
   font-size: 0.95rem;
   white-space: nowrap;
 }
+.cabecera-acciones {
+  display: flex;
+  flex: none;
+  gap: 8px;
+}
+/* "Editar" en cada cromo de la plantilla: un botón pequeño abajo a la derecha */
+.rejilla > li.con-editar {
+  position: relative;
+}
+.tarjeta-editar {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text-2, inherit);
+}
+.tarjeta-editar:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+@media (max-width: 560px) {
+  .cabecera .btn-cabecera .btn-cabecera-txt {
+    display: none;
+  }
+  .cabecera .btn-cabecera {
+    padding: 0 10px;
+  }
+}
 @media (max-width: 420px) {
   .cabecera .btn-cabecera .btn-cabecera-txt {
     display: none;
@@ -2542,4 +2576,34 @@ button.admin-salir {
   height: 100%;
   padding: 0;
   background: none;
+}
+
+/* Foto del jugador en el formulario (solo con la autorización de fotos de la familia) */
+.foto-jugador {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.foto-jugador .avatar {
+  border-radius: 50%;
+  object-fit: cover;
+}
+.foto-jugador-vacia {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 1px dashed var(--line-2);
+  color: var(--text-3, inherit);
+}
+.foto-jugador label.btn {
+  cursor: pointer;
+}
+
+/* "Eliminar mi cuenta": discreto, debajo de Cerrar sesión */
+.eliminar-cuenta {
+  display: block;
+  margin: 14px auto 0;
 }

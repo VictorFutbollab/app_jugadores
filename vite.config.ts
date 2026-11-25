@@ -42,5 +42,7 @@ export default defineConfig(({ mode }) => ({
   server: { host: '127.0.0.1', port: 5173 },
   preview: { host: '127.0.0.1' },
   build: mode === 'preview' ? { outDir: 'dist-preview', chunkSizeWarningLimit: 2000 } : undefined,
-  test: { environment: 'node' },
+  // vmThreads: con el pool por defecto, en este equipo las pruebas no llegan a arrancar
+  // ("Cannot read properties of undefined (reading 'config')" en el primer describe).
+  test: { environment: 'node', pool: 'vmThreads' },
 }))

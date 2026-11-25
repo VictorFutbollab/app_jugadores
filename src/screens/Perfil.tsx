@@ -6,6 +6,8 @@ import { Campo, CamposEquipo } from './Acceso'
 import { categoria } from '../data/categorias'
 import { formatearTelefono, normalizarEmail, normalizarTelefono, normalizarUsuario, prepararFoto, validarPerfil, type DatosRegistro, type Errores } from '../auth/auth'
 import type { Cuenta } from '../model/types'
+import { href } from '../state/router'
+import { accionesEntrenador } from '../logic/permisos'
 
 type Editable = Pick<DatosRegistro, 'nombre' | 'usuario' | 'email' | 'telefono' | 'entidad' | 'categoria' | 'equipo' | 'genero'>
 
@@ -34,7 +36,8 @@ const normal = (x: Editable) =>
 
 export function Perfil() {
   // El panel de entrenador no tiene accesos de administración: eso está en su propio panel (con PIN).
-  const { cuenta, guardarPerfil, cerrarSesion, tema, setTema, verComo, setVerComo, equipos, equipoActivo, setEquipoActivo } = useApp()
+  const { cuenta, guardarPerfil, cerrarSesion, tema, setTema, verComo, setVerComo, equipos, equipoActivo, setEquipoActivo, tipoCuenta } = useApp()
+  const acciones = accionesEntrenador({ tipoCuenta, puedeEditar: false })
   const [d, setD] = useState<Editable>(() => editable(cuenta))
   const [err, setErr] = useState<Errores>({})
   const [estado, setEstado] = useState<'' | 'guardando' | 'guardado' | 'email'>('')
@@ -151,18 +154,25 @@ export function Perfil() {
         <CambiarPassword />
       </div>
 
-      {equipos.length > 1 && (
+      {(equipos.length > 1 || acciones.crearEquipo) && (
         <section className="bloque">
-          <h2>Equipo que estás viendo</h2>
-          <div className="campo">
-            <select value={equipoActivo} onChange={(e) => setEquipoActivo(e.target.value)} aria-label="Equipo">
-              {equipos.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.nombre} · {e.entidad}
-                </option>
-              ))}
-            </select>
-          </div>
+          <h2>{equipos.length > 1 ? 'Equipo que estás viendo' : 'Tus equipos'}</h2>
+          {equipos.length > 1 && (
+            <div className="campo">
+              <select value={equipoActivo} onChange={(e) => setEquipoActivo(e.target.value)} aria-label="Equipo">
+                {equipos.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.nombre} · {e.entidad}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {acciones.crearEquipo && (
+            <a className="btn" href={href({ nombre: 'equipo', id: 'nuevo' })} style={{ marginTop: equipos.length > 1 ? 12 : 0 }}>
+              <Icon n="mas" size={18} /> Crear equipo
+            </a>
+          )}
         </section>
       )}
 
@@ -209,8 +219,64 @@ export function Perfil() {
       <button className="btn peligro ancho" onClick={cerrarSesion}>
         <Icon n="salir" /> Cerrar sesión
       </button>
+      <EliminarCuenta />
       <p className="nota-pie centrado">FutbolLab Jugadores · {cuenta.role === 'admin' ? 'administrador' : 'entrenador'}</p>
     </>
+  )
+}
+
+/**
+ * Borrar la cuenta (lo exigen Apple y Google). Hay que escribir ELIMINAR para confirmar.
+ * Si es el único entrenador principal de un equipo con jugadores, la base de datos lo impide
+ * y su mensaje se muestra tal cual.
+ */
+function EliminarCuenta() {
+  const { eliminarCuenta } = useApp()
+  const [abierto, setAbierto] = useState(false)
+  const [texto, setTexto] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [borrando, setBorrando] = useState(false)
+  if (!abierto) {
+    return (
+      <button type="button" className="enlace pequeno peligro-txt eliminar-cuenta" onClick={() => setAbierto(true)}>
+        Eliminar mi cuenta
+      </button>
+    )
+  }
+  return (
+    <section className="bloque confirmar" role="alertdialog" aria-label="Eliminar mi cuenta">
+      <h2>Eliminar mi cuenta</h2>
+      <p>Se borrarán tu cuenta y tus datos de FutbolLab, también en FutbolLab Informes. No se puede deshacer.</p>
+      <Campo etiqueta="Escribe ELIMINAR para confirmar">
+        <input value={texto} onChange={(e) => { setTexto(e.target.value); setError(null) }} autoComplete="off" autoCapitalize="characters" spellCheck={false} />
+      </Campo>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="botones">
+        <button type="button" className="btn" onClick={() => { setAbierto(false); setTexto(''); setError(null) }}>
+          Cancelar
+        </button>
+        <button
+          type="button"
+          className="btn peligro"
+          disabled={texto.trim() !== 'ELIMINAR' || borrando}
+          onClick={async () => {
+            setBorrando(true)
+            try {
+              await eliminarCuenta()
+            } catch (e) {
+              setError((e as Error).message)
+              setBorrando(false)
+            }
+          }}
+        >
+          {borrando ? 'Eliminando…' : 'Eliminar mi cuenta'}
+        </button>
+      </div>
+    </section>
   )
 }
 

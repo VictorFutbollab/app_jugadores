@@ -90,6 +90,15 @@ interface Ctx {
   cambiarAdmin: (usuarioId: string, esAdmin: boolean) => Promise<void>
   crearEquipo: (e: Equipo) => Promise<void>
   cargarEjemplo: () => Promise<void>
+  // ── Entrenador (los permisos los decide la base de datos) ──
+  /** puede_editar_equipo del equipo activo: admin, o manager entrenador de ese equipo. */
+  puedeEditar: boolean
+  /** Guarda los cambios del equipo (inf_guardar_equipo: combina, no sustituye). */
+  editarEquipo: (e: Equipo) => Promise<void>
+  /** La familia retira la autorización (inf_retirar_consentimiento). */
+  retirarConsentimiento: (jugadorId: string) => Promise<void>
+  /** Borra la cuenta (eliminar_mi_cuenta) y cierra la sesión. */
+  eliminarCuenta: () => Promise<void>
 }
 
 const C = createContext<Ctx | null>(null)
@@ -138,6 +147,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [numPendientes, setNumPendientes] = useState(0)
   const [tipoCuenta, setTipoCuenta] = useState<TipoCuenta | null>(null)
   const [equiposInf, setEquiposInf] = useState<EquipoFamilia[]>([])
+  /** Equipos en los que puede_editar_equipo es verdadero (se pregunta al servidor en cada recarga). */
+  const [editables, setEditables] = useState<ReadonlySet<string>>(new Set())
+  const tipoRef = useRef<TipoCuenta | null>(null)
   const [recuperando, setRecuperando] = useState(false)
   // Panel por el que se entró. El de admin solo se abre desde su propio acceso (email + contraseña + PIN).
   const [panel, setPanelState] = useState<Panel>(() => leerPanel())
@@ -155,7 +167,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const recargar = useCallback(async () => {
-    const [d, p] = await Promise.all([R.cargarTodo(), R.listarPerfiles()])
+    const [cargado, p] = await Promise.all([R.cargarTodo(), R.listarPerfiles()])
+    let d = cargado
+    // Los equipos van por la cuenta (mis_equipos): también los que creó aunque no esté en miembros.
+    // Una cuenta familia no tiene equipos propios (los suyos son de solo lectura, en equiposInf).
+    if (tipoRef.current && tipoRef.current !== 'familia') {
+      const mios = await R.misEquipos().catch(() => [])
+      const ya = new Set(d.equipos.map((e) => e.id))
+      const extra = mios.filter((e) => !ya.has(e.id))
+      if (extra.length) d = { ...d, equipos: [...d.equipos, ...extra] }
+    }
+    // Qué equipos puede editar: lo decide la base de datos (puede_editar_equipo).
+    // Atajos de las mismas reglas: un admin puede con todos, una familia con ninguno.
+    if (tipoRef.current === 'admin') setEditables(new Set(d.equipos.map((e) => e.id)))
+    else if (tipoRef.current === 'familia' || !tipoRef.current) setEditables(new Set())
+    else {
+      const eds = await Promise.all(d.equipos.map((e) => R.puedeEditarEquipo(e.id).then((v) => (v ? e.id : null), () => null)))
+      setEditables(new Set(eds.filter((x): x is string => !!x)))
+    }
     // Las notas que aún esperan en la cola se siguen viendo hasta que se suban.
     const cola = SC.MODO_SIN_CONEXION && usuarioRef.current ? await SC.pendientes(usuarioRef.current) : []
     setTodo(SC.conPendientes(d, cola))
@@ -187,6 +216,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const limpiar = useCallback(() => {
     usuarioRef.current = null
+    tipoRef.current = null
+    setEditables(new Set())
     setTipoCuenta(null)
     setEquiposInf([])
     setPanelState('usuario')
@@ -240,6 +271,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Cuenta FutbolLab compartida con Informes: tipo de cuenta y código de equipo pendiente.
       try {
         const r = await completarCuenta(c)
+        tipoRef.current = r.tipo
         setTipoCuenta(r.tipo)
         if (r.aviso) setAviso(r.aviso)
       } catch (e) {
@@ -551,6 +583,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await yRecargar(() => R.crearEquipo(e))
       setEquipoElegido(e.id)
       void DB.guardarAjuste('equipoActivo', e.id)
+    },
+    puedeEditar: editables.has(equipoActivo) && verComo === 'yo',
+    editarEquipo: (e) => yRecargar(() => R.guardar('equipos', { ...e, actualizadoEn: new Date().toISOString() })),
+    retirarConsentimiento: (id) => yRecargar(() => R.retirarConsentimiento(id)),
+    async eliminarCuenta() {
+      if (sinSenal()) throw new Error(SC.MENSAJE_NECESITA_RED)
+      await R.eliminarMiCuenta()
+      // La cuenta ya no existe: fuera la copia local y la sesión de este dispositivo.
+      await SC.borrarDatosLocales(cuenta.id).catch(() => undefined)
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+      limpiar()
+      ir({ nombre: 'inicio' }, true)
     },
     async cargarEjemplo() {
       if (sinSenal()) throw new Error(SC.MENSAJE_NECESITA_RED)
