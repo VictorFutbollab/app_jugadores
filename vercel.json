@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "appjugadores-58mk.vercel.app" }],
+      "destination": "https://futbollab-jugadores.vercel.app/$1",
+      "permanent": true
+    }
+  ]
+}
