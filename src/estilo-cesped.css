@@ -210,19 +210,19 @@
   color: #6b4e00 !important;
 }
 
-/* Entrada: foto de un córner a pantalla completa y tarjeta blanca encima.
-   Foto: "Corner flag at Brastad arena" (W.carter, 2019), Wikimedia Commons,
-   CC0 1.0 (dominio público): sin marcas ni personas.
-   https://commons.wikimedia.org/wiki/File:Corner_flag_at_Brastad_arena.jpg */
+/* Entrada: partido nocturno bajo un foco, a pantalla completa, con la tarjeta encima.
+   Foto: "Soccer at night" (Unsplash, 2015), Wikimedia Commons, CC0 (dominio
+   público). Jugadores pequeños y no identificables, sin marcas.
+   https://commons.wikimedia.org/wiki/File:Soccer_at_night_(Unsplash).jpg */
 [data-estilo='v2'][data-visual='cesped'] .acceso-campo {
   position: fixed;
   inset: 0;
   height: auto;
   border-radius: 0;
   background:
-    linear-gradient(rgba(10, 24, 16, 0.3), rgba(10, 24, 16, 0.1) 45%, rgba(10, 24, 16, 0.4)),
-    url('/acceso-fondo.jpg') center / cover no-repeat,
-    #1f6f3a;
+    linear-gradient(rgba(6, 14, 10, 0.1), rgba(6, 14, 10, 0) 40%, rgba(6, 14, 10, 0.35)),
+    url('/acceso-fondo.jpg') center 35% / cover no-repeat,
+    #0c1a12;
 }
 [data-estilo='v2'][data-visual='cesped'] .acceso-pie {
   color: rgba(255, 255, 255, 0.85);
