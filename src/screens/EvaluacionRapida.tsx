@@ -1,33 +1,55 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Icon } from '../ui/Icon'
 import { useApp } from '../state/store'
-import { ir } from '../state/router'
-import { Avatar, Tendencia, claseNota } from '../ui/components'
-import { AREAS, AREA_COLOR, AREA_CORTO, ESTADO_INFO, POSICION_NOMBRE, num1, uid } from '../logic/format'
+import { href, ir } from '../state/router'
+import { Tendencia, claseNota } from '../ui/components'
+import { AREAS, AREA_COLOR, AREA_CORTO, ESTADO_INFO, num1, uid } from '../logic/format'
 import { accionesEntrenador } from '../logic/permisos'
 import { puedeEvaluar, tieneConsentimientoFicha } from '../logic/privacy'
-import { itemsAplicables, resumenJugador } from '../logic/stats'
+import { resumenJugador } from '../logic/stats'
 import type { Area, ContextoEvaluacion, Evaluacion, ItemEvaluacion, Jugador, Puntuacion } from '../model/types'
 
-const MAX_ITEMS = 6
 /** Ejemplo para el campo de "Añadir" de cada área. */
 const EJEMPLO_AREA: Record<Area, string> = { tecnica: 'Tiro con la izquierda', tactica: 'Basculación', fisica: 'Salto', mental: 'Actitud en el banquillo' }
 
-type Fase = 'preparar' | 'evaluar' | 'fin'
+/** Qué significa cada nota 0–10, en el lenguaje del entrenador (nunca en negativo absoluto). */
+function etiquetaNota(v: number) {
+  if (v <= 2) return 'Le cuesta'
+  if (v <= 4) return 'En proceso'
+  if (v <= 6) return 'Cumple'
+  if (v <= 8) return 'Bien'
+  return 'Destaca'
+}
 
+/** Vibración muy corta al cambiar de nota (si el móvil la permite y no se ha pedido menos movimiento). */
+const vibrar = () => {
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) navigator.vibrate(6)
+}
+
+/** Notas de la sesión: jugador → aspecto → nota 0–10. */
+type Notas = Record<string, Record<string, number>>
+
+/**
+ * Evaluación en una sola pantalla:
+ *  1. Contexto (partido o entrenamiento).
+ *  2. Jugadores que vas a valorar (todos desmarcados al entrar).
+ *  3. Aspectos por área: al tocar uno se abre la barrita 0–10 para cada jugador marcado.
+ *  4. "Guardar evaluación": se guarda la nota de cada jugador y se ve cómo ha evolucionado.
+ */
 export function EvaluacionRapida() {
   const app = useApp()
-  const { ds, jugadoresVisibles, estadoDe, yo, tipoCuenta, puedeEditar } = app
-  const [fase, setFase] = useState<Fase>('preparar')
+  const { ds, jugadoresVisibles, estadoDe, yo, tipoCuenta, puedeEditar, guardarEvaluacion, usuarioId } = app
   const [contexto, setContexto] = useState<ContextoEvaluacion>('partido')
-  const [itemIds, setItemIds] = useState<string[]>([]) // el entrenador elige qué valorar
   const candidatos = useMemo(() => jugadoresVisibles.filter(tieneConsentimientoFicha).sort((a, b) => a.dorsal - b.dorsal), [jugadoresVisibles])
   // Todos desmarcados: el entrenador elige a quién ha visto hoy.
   const [sel, setSel] = useState<Set<string>>(() => new Set())
+  const [notas, setNotas] = useState<Notas>({})
+  const [abierto, setAbierto] = useState<ItemEvaluacion | null>(null)
+  const [aviso, setAviso] = useState<string | null>(null)
+  const [guardando, setGuardando] = useState(false)
+  const [hecho, setHecho] = useState<{ sesionId: string; jugadores: Jugador[]; antes: Map<string, number | null> } | null>(null)
   const sinConsent = jugadoresVisibles.length - candidatos.length
-  const sesion = useRef({ id: uid(), inicio: 0, fin: 0 })
-  const [antes, setAntes] = useState<Map<string, number | null>>(new Map())
-  // Añadir un ítem propio: qué área está abierta, el texto y el estado del guardado.
+  // Añadir un aspecto propio: qué área está abierta, el texto y el estado del guardado.
   const [anadiendo, setAnadiendo] = useState<Area | null>(null)
   const [nuevoNombre, setNuevoNombre] = useState('')
   const [guardandoItem, setGuardandoItem] = useState(false)
@@ -36,32 +58,27 @@ export function EvaluacionRapida() {
   if (!puedeEvaluar(yo)) {
     return <p className="vacio">No tienes permiso para evaluar. Pídeselo al entrenador principal.</p>
   }
-
-  const items = itemIds.map((id) => ds.items.find((i) => i.id === id)!).filter(Boolean)
-  const jugadores = candidatos.filter((j) => sel.has(j.id))
-  const puedeAnadirItems = accionesEntrenador({ tipoCuenta, puedeEditar }).editarEquipo
-
-  if (fase === 'evaluar') {
+  if (hecho) {
     return (
-      <Deslizador
-        jugadores={jugadores}
-        items={items}
-        contexto={contexto}
-        sesionId={sesion.current.id}
-        inicio={sesion.current.inicio}
-        onFin={() => {
-          sesion.current.fin = Date.now()
-          setFase('fin')
+      <Fin
+        {...hecho}
+        onOtra={() => {
+          setHecho(null)
+          setNotas({})
+          setSel(new Set())
         }}
       />
     )
   }
-  if (fase === 'fin') {
-    return <Fin jugadores={jugadores} sesionId={sesion.current.id} ms={sesion.current.fin - sesion.current.inicio} antes={antes} />
-  }
 
-  const toggleItem = (id: string) =>
-    setItemIds((xs) => (xs.includes(id) ? xs.filter((x) => x !== id) : xs.length >= MAX_ITEMS ? xs : [...xs, id]))
+  const puedeAnadirItems = accionesEntrenador({ tipoCuenta, puedeEditar }).editarEquipo
+  const jugadores = candidatos.filter((j) => sel.has(j.id))
+  const disponible = (j: Jugador) => (estadoDe(j.id)?.tipo ?? 'disponible') === 'disponible'
+  const campo = ds.items.filter((i) => i.activo && !i.eliminadoEn && i.ambito !== 'portero')
+  // Solo cuentan las notas de los jugadores que siguen marcados.
+  const totalNotas = jugadores.reduce((s, j) => s + Object.keys(notas[j.id] ?? {}).length, 0)
+  const conNota = jugadores.filter((j) => Object.keys(notas[j.id] ?? {}).length > 0)
+
   const toggleJ = (id: string) =>
     setSel((s) => {
       const n = new Set(s)
@@ -69,8 +86,51 @@ export function EvaluacionRapida() {
       else n.add(id)
       return n
     })
-  const disponible = (j: Jugador) => (estadoDe(j.id)?.tipo ?? 'disponible') === 'disponible'
-  const campo = ds.items.filter((i) => i.activo && !i.eliminadoEn && i.ambito !== 'portero')
+  const ponerNota = (jid: string, itemId: string, v: number | null) =>
+    setNotas((n) => {
+      const delJ = { ...(n[jid] ?? {}) }
+      if (v == null) delete delJ[itemId]
+      else delJ[itemId] = v
+      return { ...n, [jid]: delJ }
+    })
+  const notasDelItem = (itemId: string) => jugadores.map((j) => notas[j.id]?.[itemId]).filter((v): v is number => v != null)
+
+  const guardar = async () => {
+    if (!totalNotas) return
+    setGuardando(true)
+    setAviso(null)
+    const sesionId = uid()
+    const antes = new Map(conNota.map((j) => [j.id, app.resumen.get(j.id)?.media ?? null]))
+    const ahora = new Date().toISOString()
+    try {
+      for (const j of conNota) {
+        const puntuaciones: Puntuacion[] = Object.entries(notas[j.id]).map(([itemId, valor]) => ({ itemId, valor, escala: 10 }))
+        const ev: Evaluacion = {
+          id: `evl-${sesionId}-${j.id}`,
+          creadoEn: ahora,
+          actualizadoEn: ahora,
+          creadoPor: usuarioId,
+          jugadorId: j.id,
+          fecha: ahora,
+          evaluadorId: usuarioId,
+          contexto,
+          puntuaciones,
+        }
+        // Sin cobertura se queda en el móvil y se sube al volver la señal (como siempre).
+        await guardarEvaluacion(ev)
+      }
+      setHecho({ sesionId, jugadores: conNota, antes })
+      window.scrollTo(0, 0)
+    } catch (e) {
+      setAviso(`No se ha guardado: ${(e as Error).message}`)
+    } finally {
+      setGuardando(false)
+    }
+  }
+  const salir = () => {
+    if (totalNotas && !window.confirm('Tienes notas sin guardar. ¿Salir sin guardarlas?')) return
+    ir({ nombre: 'inicio' }, true)
+  }
 
   const abrirAnadir = (a: Area) => {
     setAnadiendo(a)
@@ -82,9 +142,7 @@ export function EvaluacionRapida() {
     setGuardandoItem(true)
     setAvisoItem(null)
     try {
-      const id = await app.anadirItemPropio(anadiendo, nuevoNombre)
-      // Recién creado: se marca para esta sesión si cabe.
-      setItemIds((xs) => (xs.includes(id) || xs.length >= MAX_ITEMS ? xs : [...xs, id]))
+      await app.anadirItemPropio(anadiendo, nuevoNombre)
       setAnadiendo(null)
       setNuevoNombre('')
     } catch (e) {
@@ -94,7 +152,7 @@ export function EvaluacionRapida() {
     }
   }
   const quitarItem = async (id: string) => {
-    setItemIds((xs) => xs.filter((x) => x !== id))
+    setNotas((n) => Object.fromEntries(Object.entries(n).map(([jid, x]) => [jid, Object.fromEntries(Object.entries(x).filter(([k]) => k !== id))])))
     try {
       await app.quitarItemPropio(id)
     } catch (e) {
@@ -105,7 +163,7 @@ export function EvaluacionRapida() {
   return (
     <div className="eval-prep">
       <header className="cabecera">
-        <button className="icon-btn" aria-label="Cerrar" onClick={() => ir({ nombre: 'inicio' }, true)}>
+        <button className="icon-btn" aria-label="Cerrar" onClick={salir}>
           <Icon n="cerrar" />
         </button>
         <div className="cabecera-txt">
@@ -150,6 +208,7 @@ export function EvaluacionRapida() {
             {candidatos.map((j) => {
               const est = estadoDe(j.id)?.tipo ?? 'disponible'
               const on = sel.has(j.id)
+              const n = Object.keys(notas[j.id] ?? {}).length
               return (
                 <li key={j.id}>
                   <button type="button" className={`jug-sel ${on ? 'on' : ''}`} aria-pressed={on} onClick={() => toggleJ(j.id)}>
@@ -157,6 +216,7 @@ export function EvaluacionRapida() {
                     <span className="jug-sel-nombre">
                       {j.nombre} {j.apellidos.split(' ')[0]}
                       {est !== 'disponible' && <span className="jug-sel-estado">{ESTADO_INFO[est].nombre}</span>}
+                      {on && n > 0 && <span className="jug-sel-notas">{n === 1 ? '1 nota' : `${n} notas`}</span>}
                     </span>
                     <span className="jug-sel-check" aria-hidden>
                       {on && <Icon n="check" size={16} />}
@@ -173,10 +233,10 @@ export function EvaluacionRapida() {
       <section className="bloque">
         <div className="bloque-tit-fila">
           <h2>Qué vas a observar</h2>
-          <span className="contador-sel num">
-            {itemIds.length} de {MAX_ITEMS}
-          </span>
+          {totalNotas > 0 && <span className="contador-sel num">{totalNotas === 1 ? '1 nota' : `${totalNotas} notas`}</span>}
         </div>
+        <p className="sub ayuda-observar">{jugadores.length ? 'Toca un aspecto para ponerle nota de 0 a 10.' : 'Marca antes los jugadores que vas a valorar.'}</p>
+
         <div className="areas-items">
           {AREAS.map((a) => (
             <div key={a} className="grupo-items">
@@ -187,19 +247,15 @@ export function EvaluacionRapida() {
                 {campo
                   .filter((i) => i.area === a)
                   .map((i) => {
-                    const on = itemIds.includes(i.id)
+                    const vs = notasDelItem(i.id)
                     const propio = i.id.startsWith('pro-')
+                    // Con un solo jugador se ve su nota; con varios, cuántos llevan nota.
+                    const marca = !vs.length ? null : jugadores.length === 1 ? String(vs[0]) : `${vs.length}/${jugadores.length}`
                     return (
                       <span key={i.id} className={`chip-item ${propio ? 'propio' : ''}`}>
-                        <button
-                          type="button"
-                          className={`chip-btn ${on ? 'on' : ''}`}
-                          aria-pressed={on}
-                          disabled={!on && itemIds.length >= MAX_ITEMS}
-                          onClick={() => toggleItem(i.id)}
-                          title={i.descripcion}
-                        >
+                        <button type="button" className={`chip-btn ${vs.length ? 'on' : ''}`} onClick={() => setAbierto(i)} title={i.descripcion} aria-haspopup="dialog">
                           {i.nombre}
+                          {marca && <span className={`chip-nota num ${jugadores.length === 1 ? claseNota(vs[0]) : ''}`}>{marca}</span>}
                         </button>
                         {propio && puedeAnadirItems && (
                           <button type="button" className="chip-quitar" aria-label={`Quitar ${i.nombre}`} title="Quitar de la lista" onClick={() => quitarItem(i.id)}>
@@ -228,7 +284,7 @@ export function EvaluacionRapida() {
                     value={nuevoNombre}
                     maxLength={40}
                     placeholder={`Nuevo en ${AREA_CORTO[a]} (p. ej. ${EJEMPLO_AREA[a]})`}
-                    aria-label={`Nuevo campo de ${AREA_CORTO[a]}`}
+                    aria-label={`Nuevo aspecto de ${AREA_CORTO[a]}`}
                     onChange={(e) => setNuevoNombre(e.target.value)}
                   />
                   <button type="submit" className="btn primario" disabled={!nuevoNombre.trim() || guardandoItem}>
@@ -247,312 +303,192 @@ export function EvaluacionRapida() {
             {avisoItem}
           </p>
         )}
-        <p className="nota-pie">
-          Elige hasta {MAX_ITEMS} por sesión.{puedeAnadirItems ? ' Lo que añadas se guarda en el equipo y sirve para las próximas evaluaciones.' : ''} A los porteros se les cambian los ítems de campo por ítems de portero.
-        </p>
+        {puedeAnadirItems && <p className="nota-pie">Lo que añadas se guarda en el equipo y sirve para las próximas evaluaciones.</p>}
       </section>
 
       <div className="barra-accion">
-        <button
-          className="btn primario grande"
-          disabled={!items.length || !jugadores.length}
-          onClick={() => {
-            setAntes(new Map(jugadores.map((j) => [j.id, app.resumen.get(j.id)?.media ?? null])))
-            sesion.current = { id: uid(), inicio: Date.now(), fin: 0 }
-            setFase('evaluar')
-          }}
-        >
-          {!jugadores.length ? 'Marca los jugadores que vas a evaluar' : !items.length ? 'Elige qué vas a observar' : `Empezar · ${jugadores.length} jugadores × ${items.length} ítems`}
-        </button>
+        {aviso && (
+          <p className="error" role="alert">
+            {aviso}
+          </p>
+        )}
+        <div className="botones">
+          <button className="btn primario grande crece" disabled={!totalNotas || guardando} onClick={guardar}>
+            <Icon n="check" size={20} />{' '}
+            {guardando ? 'Guardando…' : totalNotas ? `Guardar evaluación · ${conNota.length === 1 ? '1 jugador' : `${conNota.length} jugadores`}` : 'Guardar evaluación'}
+          </button>
+        </div>
       </div>
+
+      {abierto && (
+        <PopupNota
+          item={abierto}
+          jugadores={jugadores}
+          notas={notas}
+          onNota={(jid, v) => {
+            ponerNota(jid, abierto.id, v)
+            if (v != null) vibrar()
+          }}
+          onCerrar={() => setAbierto(null)}
+        />
+      )}
     </div>
   )
 }
 
-/** Ítems de la sesión adaptados al jugador (porteros, edad). */
-function itemsPara(j: Jugador, items: ItemEvaluacion[], todos: ItemEvaluacion[]) {
-  const ok = new Set(itemsAplicables(todos, j).map((i) => i.id))
-  const porteros = todos.filter((i) => i.ambito === 'portero' && ok.has(i.id))
-  const out: ItemEvaluacion[] = []
-  for (const it of items) {
-    if (ok.has(it.id)) out.push(it)
-    else {
-      const sust = porteros.find((p) => !out.includes(p))
-      if (sust) out.push(sust)
-    }
-  }
-  return out
-}
-
-/** Qué significa cada nota 0–10, en el lenguaje del entrenador (nunca en negativo absoluto). */
-export function etiquetaNota(v: number) {
-  if (v <= 2) return 'Le cuesta'
-  if (v <= 4) return 'En proceso'
-  if (v <= 6) return 'Cumple'
-  if (v <= 8) return 'Bien'
-  return 'Destaca'
-}
-/** Espera tras mover la barrita antes de guardar (no se guarda en cada paso del arrastre). */
-const ESPERA_GUARDADO = 500
-
-/** Vibración muy corta al cambiar de nota (si el móvil la permite y no se ha pedido menos movimiento). */
-const vibrar = () => {
-  if (typeof navigator !== 'undefined' && 'vibrate' in navigator && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) navigator.vibrate(6)
-}
-
-function Deslizador({ jugadores, items, contexto, sesionId, inicio, onFin }: { jugadores: Jugador[]; items: ItemEvaluacion[]; contexto: ContextoEvaluacion; sesionId: string; inicio: number; onFin: () => void }) {
-  const { ds, guardarEvaluacion, usuarioId } = useApp()
-  const [i, setI] = useState(0)
-  const [punt, setPunt] = useState<Record<string, Record<string, number>>>({})
-  const [dx, setDx] = useState(0)
-  const start = useRef<{ x: number; y: number } | null>(null)
-  const [, tick] = useState(0)
-  const guardadas = useRef(new Set<string>())
-  const pendientes = useRef(new Map<string, { t: number; p: Record<string, number> }>())
-
+/** Ventana con la barrita 0–10 de un aspecto, una por cada jugador marcado. */
+function PopupNota({ item, jugadores, notas, onNota, onCerrar }: { item: ItemEvaluacion; jugadores: Jugador[]; notas: Notas; onNota: (jid: string, v: number | null) => void; onCerrar: () => void }) {
+  const caja = useRef<HTMLDivElement>(null)
+  const cerrar = useRef(onCerrar)
   useEffect(() => {
-    const t = setInterval(() => tick((n) => n + 1), 1000)
-    return () => clearInterval(t)
+    cerrar.current = onCerrar
+  }, [onCerrar])
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => e.key === 'Escape' && cerrar.current()
+    document.addEventListener('keydown', tecla)
+    caja.current?.querySelector<HTMLElement>('input, button')?.focus()
+    // La página de detrás no se desplaza mientras está abierta.
+    const antes = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', tecla)
+      document.body.style.overflow = antes
+    }
   }, [])
 
-  const j = jugadores[i]
-  const its = itemsPara(j, items, ds.items)
-  const mias = punt[j.id] ?? {}
-
-  /** Guarda la evaluación de un jugador en la escala 0–10. */
-  const guardarYa = (jid: string, p: Record<string, number>) => {
-    const puntuaciones: Puntuacion[] = Object.entries(p).map(([itemId, valor]) => ({ itemId, valor, escala: 10 }))
-    // Sin notas: solo se guarda (vacía) si ya se había guardado algo, para que quitar la
-    // única nota se refleje también en el servidor. Las vacías no cuentan en las medias.
-    if (!puntuaciones.length && !guardadas.current.has(jid)) return
-    guardadas.current.add(jid)
-    const ahora = new Date().toISOString()
-    const ev: Evaluacion = {
-      id: `evl-${sesionId}-${jid}`,
-      creadoEn: ahora,
-      actualizadoEn: ahora,
-      creadoPor: usuarioId,
-      jugadorId: jid,
-      fecha: ahora,
-      evaluadorId: usuarioId,
-      contexto,
-      puntuaciones,
-    }
-    void guardarEvaluacion(ev)
-  }
-  /** Guardado automático, medio segundo después del último movimiento de la barrita. */
-  const programar = (jid: string, p: Record<string, number>) => {
-    const prev = pendientes.current.get(jid)
-    if (prev) clearTimeout(prev.t)
-    const t = window.setTimeout(() => {
-      pendientes.current.delete(jid)
-      guardarYa(jid, p)
-    }, ESPERA_GUARDADO)
-    pendientes.current.set(jid, { t, p })
-  }
-  /** Lo que quede por guardar, se guarda ya (al cambiar de jugador o al terminar). */
-  const vaciar = () => {
-    for (const [jid, { t, p }] of pendientes.current) {
-      clearTimeout(t)
-      guardarYa(jid, p)
-    }
-    pendientes.current.clear()
-  }
-  // Al salir de la pantalla no se pierde nada.
-  useEffect(() => () => vaciar(), []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const irA = (n: number) => {
-    vaciar()
-    if (n >= jugadores.length) return onFin()
-    setI(Math.max(0, n))
-  }
-  const terminar = () => {
-    vaciar()
-    onFin()
-  }
-
-  const puntuar = (itemId: string, v: number) => {
-    if (mias[itemId] === v) return
-    const nuevo = { ...mias, [itemId]: v }
-    setPunt((p) => ({ ...p, [j.id]: nuevo }))
-    programar(j.id, nuevo)
-    vibrar()
-  }
-  const quitar = (itemId: string) => {
-    const nuevo = { ...mias }
-    delete nuevo[itemId]
-    setPunt((p) => ({ ...p, [j.id]: nuevo }))
-    programar(j.id, nuevo)
-  }
-
-  const seg = Math.floor((Date.now() - inicio) / 1000)
-  const reloj = `${Math.floor(seg / 60)}:${String(seg % 60).padStart(2, '0')}`
-  const valorados = its.filter((it) => mias[it.id] != null).length
-
   return (
-    <div className="eval-pantalla">
-      <div className="eval-top">
-        <button className="icon-btn" aria-label="Terminar" onClick={terminar}>
-          <Icon n="cerrar" />
-        </button>
-        <div className="progreso-caja">
-          <span className="eval-contador num" aria-live="polite">
-            <strong>{i + 1}</strong> de {jugadores.length}
-          </span>
-          <div className="progreso" aria-hidden>
-            {jugadores.map((x, k) => (
-              <span key={x.id} className={k < i ? 'hecho' : k === i ? 'actual' : ''} />
-            ))}
-          </div>
-        </div>
-        <span className="num reloj" aria-label="Tiempo">
-          <Icon n="reloj" size={15} /> {reloj}
-        </span>
-      </div>
-
-      <div
-        className="eval-tarjeta"
-        style={{ transform: `translateX(${dx}px)`, transition: start.current ? 'none' : 'transform .2s' }}
-        onPointerDown={(e) => {
-          // La barrita y los botones no cuentan como deslizar para cambiar de jugador.
-          if ((e.target as HTMLElement).closest('button, input')) return
-          start.current = { x: e.clientX, y: e.clientY }
-        }}
-        onPointerMove={(e) => start.current && setDx(e.clientX - start.current.x)}
-        onPointerUp={() => {
-          if (start.current) {
-            if (dx < -60) irA(i + 1)
-            else if (dx > 60) irA(i - 1)
-          }
-          start.current = null
-          setDx(0)
-        }}
-        onPointerCancel={() => {
-          start.current = null
-          setDx(0)
-        }}
-      >
-        <div className="eval-jugador">
-          <Avatar j={j} size={112} />
+    <div className="popup-fondo" onClick={(e) => e.target === e.currentTarget && onCerrar()}>
+      <div className="popup-nota" role="dialog" aria-modal="true" aria-labelledby="popup-nota-tit" ref={caja}>
+        <div className="popup-cab">
           <div>
-            <div className="eval-dorsal num">{j.dorsal}</div>
-            <div className="eval-nombre">
-              {j.nombre} {j.apellidos.split(' ')[0]}
-            </div>
-            <div className="sub">{j.posiciones?.[0] && POSICION_NOMBRE[j.posiciones[0]]}</div>
+            <span className="popup-area">
+              <i style={{ background: AREA_COLOR[item.area] }} aria-hidden /> {AREA_CORTO[item.area]}
+            </span>
+            <h2 id="popup-nota-tit">{item.nombre}</h2>
+            {item.descripcion && item.descripcion !== 'Añadido por el entrenador' && <p className="sub">{item.descripcion}</p>}
           </div>
+          <button className="icon-btn" aria-label="Cerrar" onClick={onCerrar}>
+            <Icon n="cerrar" />
+          </button>
         </div>
 
-        <ul className="eval-items eval-barras">
-          {its.map((it) => {
-            const v = mias[it.id]
-            const sin = v == null
-            return (
-              <li key={it.id} className={sin ? 'sin-valor' : ''}>
-                <div className="eval-item-cab">
-                  <span className="eval-item-nombre">
-                    <i style={{ background: AREA_COLOR[it.area] }} aria-hidden />
-                    {it.nombre}
-                    {it.grupo && <span className="sub"> · {it.grupo}</span>}
-                  </span>
-                  <span className={`eval-valor num ${sin ? 'vacio' : claseNota(v)}`}>{sin ? '–' : v}</span>
-                </div>
-                <input
-                  type="range"
-                  className={`barra-nota ${sin ? 'vacia' : claseNota(v)}`}
-                  min={0}
-                  max={10}
-                  step={1}
-                  value={v ?? 5}
-                  aria-label={`${it.nombre}, de 0 a 10`}
-                  aria-valuetext={sin ? 'Sin valorar' : `${v}: ${etiquetaNota(v)}`}
-                  style={{ '--pct': `${(v ?? 5) * 10}%` } as CSSProperties}
-                  onChange={(e) => puntuar(it.id, e.currentTarget.valueAsNumber)}
-                  // Tocar justo en el centro de una barra sin valorar también cuenta.
-                  onPointerUp={(e) => sin && puntuar(it.id, e.currentTarget.valueAsNumber)}
-                  onKeyUp={(e) => sin && (e.key === 'Enter' || e.key === ' ') && puntuar(it.id, e.currentTarget.valueAsNumber)}
-                />
-                <div className="barra-escala" aria-hidden>
-                  {Array.from({ length: 11 }, (_, k) => (
-                    <span key={k}>{k}</span>
-                  ))}
-                </div>
-                <div className="eval-item-pie">
-                  <span className="sub">{sin ? 'Sin valorar · toca o arrastra la barra' : etiquetaNota(v)}</span>
-                  {!sin && (
-                    <button type="button" className="enlace pequeno" onClick={() => quitar(it.id)}>
-                      Quitar nota
-                    </button>
-                  )}
-                </div>
-              </li>
-            )
-          })}
-        </ul>
-        <p className="nota-pie centrado">
-          {valorados} de {its.length} valorados · se guarda solo · desliza la tarjeta para cambiar de jugador
-        </p>
-      </div>
+        {jugadores.length === 0 ? (
+          <p className="sub popup-vacio">Marca primero los jugadores que vas a valorar (en "Jugadores").</p>
+        ) : (
+          <ul className="eval-items eval-barras popup-lista">
+            {jugadores.map((j) => {
+              const v = notas[j.id]?.[item.id]
+              const sin = v == null
+              return (
+                <li key={j.id} className={sin ? 'sin-valor' : ''}>
+                  <div className="eval-item-cab">
+                    <span className="eval-item-nombre">
+                      <span className="jug-sel-dorsal num">{j.dorsal}</span>
+                      {j.nombre} {j.apellidos.split(' ')[0]}
+                    </span>
+                    <span className={`eval-valor num ${sin ? 'vacio' : claseNota(v)}`}>{sin ? '–' : v}</span>
+                  </div>
+                  <input
+                    type="range"
+                    className={`barra-nota ${sin ? 'vacia' : claseNota(v)}`}
+                    min={0}
+                    max={10}
+                    step={1}
+                    value={v ?? 5}
+                    aria-label={`${item.nombre} de ${j.nombre}, de 0 a 10`}
+                    aria-valuetext={sin ? 'Sin valorar' : `${v}: ${etiquetaNota(v)}`}
+                    style={{ '--pct': `${(v ?? 5) * 10}%` } as CSSProperties}
+                    onChange={(e) => onNota(j.id, e.currentTarget.valueAsNumber)}
+                    // Tocar justo en el centro de una barra sin valorar también cuenta.
+                    onPointerUp={(e) => sin && onNota(j.id, e.currentTarget.valueAsNumber)}
+                    onKeyUp={(e) => sin && (e.key === 'Enter' || e.key === ' ') && onNota(j.id, e.currentTarget.valueAsNumber)}
+                  />
+                  <div className="barra-escala" aria-hidden>
+                    {Array.from({ length: 11 }, (_, k) => (
+                      <span key={k}>{k}</span>
+                    ))}
+                  </div>
+                  <div className="eval-item-pie">
+                    <span className="sub">{sin ? 'Sin valorar · toca o arrastra la barra' : etiquetaNota(v)}</span>
+                    {!sin && (
+                      <button type="button" className="enlace pequeno" onClick={() => onNota(j.id, null)}>
+                        Quitar nota
+                      </button>
+                    )}
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
 
-      <div className="eval-nav">
-        <button className="btn" disabled={i === 0} onClick={() => irA(i - 1)}>
-          Anterior
-        </button>
-        <span className="num sub">
-          {i + 1} de {jugadores.length}
-        </span>
-        <button className="btn primario" onClick={() => irA(i + 1)}>
-          {i === jugadores.length - 1 ? 'Terminar' : valorados ? 'Siguiente' : 'Saltar'}
-        </button>
+        <div className="popup-pie">
+          <button className="btn primario grande crece" onClick={onCerrar}>
+            Hecho
+          </button>
+        </div>
       </div>
     </div>
   )
 }
 
-function Fin({ jugadores, sesionId, ms, antes }: { jugadores: Jugador[]; sesionId: string; ms: number; antes: Map<string, number | null> }) {
+/** Tras guardar: la nota de hoy y cómo ha evolucionado cada jugador. */
+function Fin({ jugadores, sesionId, antes, onOtra }: { jugadores: Jugador[]; sesionId: string; antes: Map<string, number | null>; onOtra: () => void }) {
   const { ds } = useApp()
   const evs = ds.evaluaciones.filter((e) => e.id.startsWith(`evl-${sesionId}-`) && e.puntuaciones.length > 0)
   const notas = evs.reduce((s, e) => s + e.puntuaciones.length, 0)
-  const seg = Math.round(ms / 1000)
+  const nombreItem = (id: string) => ds.items.find((i) => i.id === id)?.nombre ?? id
   return (
     <div className="eval-prep">
       <header className="cabecera">
+        <button className="icon-btn" aria-label="Cerrar" onClick={() => ir({ nombre: 'inicio' }, true)}>
+          <Icon n="cerrar" />
+        </button>
         <div className="cabecera-txt">
           <h1>Evaluación guardada</h1>
           <p className="sub">
-            {evs.length} de {jugadores.length} jugadores · {notas} notas · {Math.floor(seg / 60)} min {seg % 60} s
+            {jugadores.length === 1 ? '1 jugador' : `${jugadores.length} jugadores`} · {notas === 1 ? '1 nota' : `${notas} notas`}
           </p>
         </div>
       </header>
       <section className="bloque">
-        <ul className="lista-fin">
+        <h2>Cómo han evolucionado</h2>
+        <ul className="lista-evolucion">
           {jugadores.map((j) => {
             const ev = evs.find((e) => e.jugadorId === j.id)
             const ahora = resumenJugador(j, ds.evaluaciones, ds.items).media
             const prev = antes.get(j.id) ?? null
             return (
               <li key={j.id}>
-                <span className="num dorsal-mini">{j.dorsal}</span>
-                <span className="crece">
-                  {j.nombre} {j.apellidos.split(' ')[0]}
-                </span>
-                {ev ? (
-                  <>
-                    <span className="num">{num1(ahora)}</span>
+                <a className="evo-fila" href={href({ nombre: 'evolucion', id: j.id })}>
+                  <span className="jug-sel-dorsal num">{j.dorsal}</span>
+                  <span className="crece">
+                    <strong>
+                      {j.nombre} {j.apellidos.split(' ')[0]}
+                    </strong>
+                    <span className="sub evo-hoy">{ev?.puntuaciones.map((p) => `${nombreItem(p.itemId)} ${p.valor}`).join(' · ')}</span>
+                  </span>
+                  <span className="evo-media">
+                    <span className={`num evo-media-v ${claseNota(ahora)}`}>{num1(ahora)}</span>
                     <Tendencia v={ahora != null && prev != null ? ahora - prev : null} />
-                  </>
-                ) : (
-                  <span className="sub">sin observar</span>
-                )}
+                  </span>
+                  <Icon n="evolucion" size={18} />
+                </a>
               </li>
             )
           })}
         </ul>
+        <p className="nota-pie">Media de 0 a 10 y cambio respecto a antes de esta evaluación. Toca un jugador para ver toda su evolución.</p>
       </section>
       <div className="barra-accion">
-        <button className="btn primario grande" onClick={() => ir({ nombre: 'plantilla' }, true)}>
-          Ver plantilla
-        </button>
+        <div className="botones">
+          <button className="btn" onClick={onOtra}>
+            Otra evaluación
+          </button>
+          <button className="btn primario crece" onClick={() => ir({ nombre: 'plantilla' }, true)}>
+            Ver plantilla
+          </button>
+        </div>
       </div>
     </div>
   )
