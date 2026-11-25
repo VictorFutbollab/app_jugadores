@@ -246,6 +246,23 @@ main {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Botón de acción en la cabecera ("Añadir jugador", "Editar"): compacto, sin estirar el título */
+.cabecera .btn-cabecera {
+  flex: none;
+  min-height: 40px;
+  padding: 0 14px;
+  gap: 6px;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+@media (max-width: 420px) {
+  .cabecera .btn-cabecera .btn-cabecera-txt {
+    display: none;
+  }
+  .cabecera .btn-cabecera {
+    padding: 0 10px;
+  }
+}
 .cabecera .sub::first-letter {
   text-transform: uppercase;
 }

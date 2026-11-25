@@ -151,6 +151,12 @@ function visible(a: Almacen, t: string, f: Fila) {
   return mios.has(t === 'equipos' ? f.id : f.equipo_id)
 }
 
+/** Admin, o entrenador principal de ese equipo. */
+function puedeGestionar(a: Almacen, eq: string) {
+  if (tabla(a, 'profiles').find((p) => p.id === a.sesion)?.role === 'admin') return true
+  return tabla(a, 'miembros').some((m) => m.equipo_id === eq && m.usuario_id === a.sesion && m.rol === 'entrenador_principal')
+}
+
 /** Las filas de un jugador heredan su equipo (lo que en el servidor hace un trigger). */
 function conEquipo(a: Almacen, t: string, f: Fila): Fila {
   if (!('jugador_id' in f) || t === 'jugadores') return f
@@ -359,6 +365,42 @@ async function rpc(nombre: string, args: Record<string, unknown> = {}): Promise<
           return { id: j.id, dorsal: d.dorsal ?? 0, iniciales, posiciones: d.posiciones ?? [] }
         })
       return { data: filas, error: null }
+    }
+    // ── Guardado compartido de equipos y jugadores (como inf_* en Supabase) ──
+    // Solo admin o entrenador principal; se fusionan los datos y el consentimiento no se toca
+    // (solo jugador_registrar_consentimiento lo escribe).
+    case 'inf_crear_equipo': {
+      const id = String(args.p_id)
+      const equipos = tabla(a, 'equipos')
+      if (equipos.some((e) => e.id === id)) return { data: null, error: err('Ese equipo ya existe', '23505') }
+      equipos.push({ id, data: args.p_data, creado_en: ahora() })
+      tabla(a, 'miembros').push({ equipo_id: id, usuario_id: a.sesion, rol: 'entrenador_principal', permisos: { verFicha: true, evaluar: true, verNotasPrivadas: true }, creado_en: ahora() })
+      escribir(a)
+      return { data: id, error: null }
+    }
+    case 'inf_guardar_equipo': {
+      const id = String(args.p_id)
+      if (!puedeGestionar(a, id)) return { data: null, error: err('Solo el entrenador principal o un administrador pueden cambiar el equipo', '42501') }
+      const e = tabla(a, 'equipos').find((x) => x.id === id)
+      if (!e) return { data: null, error: err('Equipo no encontrado') }
+      e.data = { ...(e.data as Fila), ...(args.p_cambios as Fila) }
+      e.actualizado_en = ahora()
+      escribir(a)
+      return { data: null, error: null }
+    }
+    case 'inf_guardar_jugadores': {
+      const eq = String(args.p_equipo)
+      if (!puedeGestionar(a, eq)) return { data: null, error: err('Solo el entrenador principal o un administrador pueden dar de alta y editar jugadores', '42501') }
+      const filas = tabla(a, 'jugadores')
+      for (const { id, data } of args.p_jugadores as { id: string; data: Fila }[]) {
+        const { consentimiento: _fuera, ...cambios } = data
+        const f = filas.find((x) => x.id === id)
+        if (f && f.equipo_id !== eq) return { data: null, error: err('El jugador es de otro equipo', '42501') }
+        if (f) Object.assign(f, { data: { ...(f.data as Fila), ...cambios }, actualizado_en: ahora() })
+        else filas.push({ id, equipo_id: eq, data: { ...cambios, consentimiento: null }, creado_en: ahora() })
+      }
+      escribir(a)
+      return { data: null, error: null }
     }
     case 'admin_verificar_pin': {
       // En local el PIN está en .env.local (VITE_ADMIN_PIN_LOCAL); en Supabase lo comprueba la base de datos.

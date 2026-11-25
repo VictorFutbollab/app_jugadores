@@ -15,6 +15,7 @@ const EvaluacionRapida = lazy(() => import('./screens/EvaluacionRapida').then((m
 const Evolucion = lazy(() => import('./screens/Evolucion').then((m) => ({ default: m.Evolucion })))
 const Perfil = lazy(() => import('./screens/Perfil').then((m) => ({ default: m.Perfil })))
 const Admin = lazy(() => import('./screens/Admin').then((m) => ({ default: m.Admin })))
+const EditarJugador = lazy(() => import('./screens/Admin').then((m) => ({ default: m.EditarJugador })))
 
 function Pantalla({ r }: { r: Ruta }) {
   switch (r.nombre) {
@@ -22,6 +23,8 @@ function Pantalla({ r }: { r: Ruta }) {
       return <Plantilla />
     case 'jugador':
       return <Jugador id={r.id} pestana={r.pestana} />
+    case 'jugador-editar':
+      return <EditarJugador id={r.id} />
     case 'evaluar':
       return <EvaluacionRapida />
     case 'evolucion':
@@ -40,7 +43,7 @@ function Pantalla({ r }: { r: Ruta }) {
 type Tab = { r: Ruta; nombre: string; icono: NombreIcono; activo: (r: Ruta) => boolean; clase?: string }
 const TABS: Tab[] = [
   { r: { nombre: 'inicio' }, nombre: 'Inicio', icono: 'inicio', activo: (r) => r.nombre === 'inicio' },
-  { r: { nombre: 'plantilla' }, nombre: 'Plantilla', icono: 'plantilla', activo: (r) => r.nombre === 'plantilla' || r.nombre === 'jugador' },
+  { r: { nombre: 'plantilla' }, nombre: 'Plantilla', icono: 'plantilla', activo: (r) => r.nombre === 'plantilla' || r.nombre === 'jugador' || r.nombre === 'jugador-editar' },
   { r: { nombre: 'evolucion' }, nombre: 'Evolución', icono: 'evolucion', activo: (r) => r.nombre === 'evolucion' },
   { r: { nombre: 'perfil' }, nombre: 'Perfil', icono: 'perfil', activo: (r) => r.nombre === 'perfil' },
 ]

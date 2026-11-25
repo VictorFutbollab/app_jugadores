@@ -19,6 +19,7 @@ const P = {
   ojo: 'M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
   descargar: 'M12 4v11M7 10.5l5 5 5-5M5 20h14',
   papelera: 'M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13',
+  lapiz: 'M4 20l1-4.5L15.5 5a2.1 2.1 0 0 1 3 3L8 18.5zM13.5 7l3 3',
 } as const
 
 export type NombreIcono = keyof typeof P

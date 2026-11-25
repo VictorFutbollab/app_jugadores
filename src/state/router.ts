@@ -13,6 +13,8 @@ export type Ruta =
   | { nombre: 'evolucion'; id?: string }
   | { nombre: 'perfil' }
   | { nombre: 'admin'; seccion?: 'resumen' | 'jugadores' | 'entrenadores' | 'actividad' }
+  /** Alta y edición de un jugador desde el panel del entrenador; id "nuevo" para dar de alta. */
+  | { nombre: 'jugador-editar'; id: string }
   /** Ficha de edición del admin; id "nuevo" para dar de alta. */
   | { nombre: 'admin-jugador'; id: string }
 
@@ -23,6 +25,8 @@ export function parse(hash: string): Ruta {
       return { nombre: 'plantilla' }
     case 'jugador':
       return b ? { nombre: 'jugador', id: b, pestana: c } : { nombre: 'plantilla' }
+    case 'editar':
+      return b ? { nombre: 'jugador-editar', id: b } : { nombre: 'plantilla' }
     case 'evaluar':
       return { nombre: 'evaluar' }
     case 'evolucion':
@@ -43,6 +47,8 @@ export function href(r: Ruta): string {
       return '#inicio'
     case 'jugador':
       return `#jugador--${r.id}${r.pestana ? `--${r.pestana}` : ''}`
+    case 'jugador-editar':
+      return `#editar--${r.id}`
     case 'evolucion':
       return `#evolucion${r.id ? `--${r.id}` : ''}`
     case 'admin':

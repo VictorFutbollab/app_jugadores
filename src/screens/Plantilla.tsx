@@ -4,6 +4,7 @@ import { useApp } from '../state/store'
 import { Avatar, Cabecera, Enlace, EstadoChip, Tendencia, Vacio } from '../ui/components'
 import { AREAS, AREA_COLOR, AREA_CORTO, POSICION_ORDEN, num0, num1, pct } from '../logic/format'
 import { FLAGS } from '../config'
+import { href } from '../state/router'
 import { tieneConsentimientoFicha } from '../logic/privacy'
 import type { Jugador, TipoEstado } from '../model/types'
 
@@ -18,7 +19,7 @@ const ORDENES: { id: Orden; nombre: string }[] = [
 type Filtro = 'todos' | 'disponibles' | 'no_disponibles' | 'favoritos' | 'sin_consentimiento'
 
 export function Plantilla() {
-  const { jugadoresVisibles, resumen, externos, estadoDe, ds } = useApp()
+  const { jugadoresVisibles, resumen, externos, estadoDe, ds, yo } = useApp()
   const [q, setQ] = useState('')
   const [orden, setOrden] = useState<Orden>('dorsal')
   const [filtro, setFiltro] = useState<Filtro>('todos')
@@ -50,9 +51,16 @@ export function Plantilla() {
   }, [jugadoresVisibles, q, filtro, orden, resumen, externos, estadoDe])
 
   const equipo = ds.equipos[0]
+  // Dar de alta: entrenador principal (y admin, que en el panel del entrenador cuenta como principal).
+  const puedeAnadir = yo.rol === 'entrenador_principal'
+  const anadir = puedeAnadir && (
+    <a className="btn primario btn-cabecera" href={href({ nombre: 'jugador-editar', id: 'nuevo' })} aria-label="Añadir jugador">
+      <Icon n="mas" size={18} /> <span className="btn-cabecera-txt">Añadir jugador</span>
+    </a>
+  )
   return (
     <>
-      <Cabecera titulo="Plantilla" sub={`${equipo.nombre} · ${equipo.modalidad} · ${jugadoresVisibles.length} jugadores`} />
+      <Cabecera titulo="Plantilla" sub={`${equipo.nombre} · ${equipo.modalidad} · ${jugadoresVisibles.length} jugadores`} accion={anadir} />
       <div className="herramientas">
         <input className="buscar" type="search" placeholder="Buscar jugador" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar jugador" />
         <label className="ordenar">
@@ -82,7 +90,17 @@ export function Plantilla() {
         ))}
       </div>
 
-      {lista.length === 0 ? (
+      {jugadoresVisibles.length === 0 ? (
+        <Vacio>
+          Aún no hay jugadores en la plantilla.
+          {puedeAnadir && (
+            <>
+              {' '}
+              <a href={href({ nombre: 'jugador-editar', id: 'nuevo' })}>Añade el primero</a>.
+            </>
+          )}
+        </Vacio>
+      ) : lista.length === 0 ? (
         <Vacio>No hay jugadores con ese filtro.</Vacio>
       ) : (
         <ul className="rejilla">

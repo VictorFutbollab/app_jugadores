@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Icon } from '../ui/Icon'
 import { useApp } from '../state/store'
-import { ir, volver } from '../state/router'
+import { href, ir, volver } from '../state/router'
 import { Avatar, BarrasArea, Cabecera, Dato, Enlace, EstadoChip, Tendencia, Vacio, claseNota } from '../ui/components'
 import { RadarAreas } from '../ui/RadarAreas'
 import { AREAS, AREA_COLOR, AREA_CORTO, POSICION_NOMBRE, edad, fechaCorta, fechaLarga, num0, num1, pct } from '../logic/format'
@@ -38,9 +38,16 @@ export function Jugador({ id, pestana = 'resumen' }: { id: string; pestana?: str
   const r = resumen.get(j.id)!
   const ficha = tieneConsentimientoFicha(j)
   const fav = (
-    <button className="icon-btn" aria-pressed={!!j.favorito} aria-label={j.favorito ? 'Quitar de favoritos' : 'Marcar como favorito'} onClick={() => marcarFavorito(j.id, !j.favorito)}>
-      <Icon n="estrella" relleno={!!j.favorito} />
-    </button>
+    <>
+      {yo.rol === 'entrenador_principal' && (
+        <a className="icon-btn" href={href({ nombre: 'jugador-editar', id: j.id })} aria-label="Editar jugador" title="Editar jugador">
+          <Icon n="lapiz" />
+        </a>
+      )}
+      <button className="icon-btn" aria-pressed={!!j.favorito} aria-label={j.favorito ? 'Quitar de favoritos' : 'Marcar como favorito'} onClick={() => marcarFavorito(j.id, !j.favorito)}>
+        <Icon n="estrella" relleno={!!j.favorito} />
+      </button>
+    </>
   )
   return (
     <>

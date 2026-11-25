@@ -57,12 +57,12 @@ function Seccion({ titulo, resumen, abierta, aviso, children }: { titulo: string
  * La protección real está en el servidor: aunque alguien forzara esta pantalla,
  * cada lectura y escritura de administración la rechaza la base de datos.
  */
-function SinPermiso() {
+function SinPermiso({ titulo = 'Administración', texto = 'Solo los administradores del club pueden entrar aquí.' }: { titulo?: string; texto?: string }) {
   const { cerrarSesion } = useApp()
   return (
     <>
-      <Cabecera titulo="Administración" />
-      <Vacio>Solo los administradores del club pueden entrar aquí.</Vacio>
+      <Cabecera titulo={titulo} />
+      <Vacio>{texto}</Vacio>
       <button className="btn ancho" onClick={cerrarSesion}>
         <Icon n="salir" /> Cerrar sesión
       </button>
@@ -198,7 +198,7 @@ function Resumen() {
 
       <div className="admin-acciones">
         <a className="btn primario" href={href({ nombre: 'admin-jugador', id: 'nuevo' })}>
-          <Icon n="mas" size={18} /> Dar de alta un jugador
+          <Icon n="mas" size={18} /> Añadir jugador
         </a>
         {esperando.length > 0 && (
           <a className="btn" href={href({ nombre: 'admin', seccion: 'entrenadores' })}>
@@ -291,7 +291,7 @@ function TablaJugadores() {
         sub={`${cuenta('activos')} activos`}
         accion={
           <a className="btn primario" href={href({ nombre: 'admin-jugador', id: 'nuevo' })}>
-            <Icon n="mas" size={18} /> Alta
+            <Icon n="mas" size={18} /> Añadir jugador
           </a>
         }
       />
@@ -393,8 +393,20 @@ const consentimientoNuevo = (): Consentimiento => ({
   version: '2026.1',
 })
 
-export function AdminJugador({ id }: { id: string }) {
-  const { esAdmin, ds, usuarioId, estadoDe, guardarJugador, guardarEstado, borrarJugador, exportarJugador } = useApp()
+/** Alta y edición de un jugador desde el panel del entrenador (mismo formulario que el del admin). */
+export function EditarJugador({ id }: { id: string }) {
+  return <AdminJugador id={id} modo="entrenador" />
+}
+
+/**
+ * Alta y edición de un jugador. modo "admin": panel de administración.
+ * modo "entrenador": panel del entrenador, solo para el entrenador principal
+ * (el servidor lo vuelve a comprobar). Borrar todo sigue siendo solo del admin.
+ */
+export function AdminJugador({ id, modo = 'admin' }: { id: string; modo?: 'admin' | 'entrenador' }) {
+  const { esAdmin, yo, ds, usuarioId, estadoDe, guardarJugador, guardarEstado, registrarConsentimiento, borrarJugador, exportarJugador } = useApp()
+  const enAdmin = modo === 'admin'
+  const permitido = enAdmin ? esAdmin : yo.rol === 'entrenador_principal'
   const nuevo = id === 'nuevo'
   const original = ds.jugadores.find((x) => x.id === id && !x.eliminadoEn)
   const equipoId = ds.equipos[0].id
@@ -440,11 +452,15 @@ export function AdminJugador({ id }: { id: string }) {
   const [guardando, setGuardando] = useState(false)
   const [confirmarBorrar, setConfirmarBorrar] = useState(false)
 
-  if (!esAdmin) return <SinPermiso />
+  // A dónde volver: el panel de admin, o la plantilla / la ficha del jugador en el panel del entrenador.
+  const salida: Ruta = enAdmin ? { nombre: 'admin' } : original ? { nombre: 'jugador', id: original.id } : { nombre: 'plantilla' }
+  if (!permitido) {
+    return enAdmin ? <SinPermiso /> : <SinPermiso titulo="Jugador" texto="Solo el entrenador principal o un administrador pueden dar de alta y editar jugadores." />
+  }
   if (!nuevo && !original) {
     return (
       <>
-        <Cabecera titulo="Jugador" atras={() => volver({ nombre: 'admin' })} />
+        <Cabecera titulo="Jugador" atras={() => volver(salida)} />
         <Vacio>Este jugador no existe o se ha borrado por completo.</Vacio>
       </>
     )
@@ -505,9 +521,14 @@ export function AdminJugador({ id }: { id: string }) {
           .filter((k) => k.nombre || k.telefono || k.email),
       }
       await guardarJugador(limpio)
+      // El consentimiento no viaja con la ficha (las funciones compartidas no lo tocan):
+      // uno nuevo se registra aparte, y el servidor vuelve a validarlo y a comprobar el rol.
+      const firmado = limpio.consentimiento
+      const yaVigente = original?.consentimiento && !original.consentimiento.retiradoEn
+      if (firmado && !firmado.retiradoEn && !yaVigente) await registrarConsentimiento(limpio.id, firmado, limpio.fechaNacimiento ?? null)
       const estadoLimpio: Estado = { ...est, vueltaPrevista: est.tipo === 'disponible' ? null : est.vueltaPrevista || null, nota: est.nota?.trim() }
       if (nuevo || JSON.stringify(estadoLimpio) !== JSON.stringify(estadoPrevio)) await guardarEstado(estadoLimpio)
-      if (nuevo) ir({ nombre: 'admin-jugador', id: limpio.id }, true)
+      if (nuevo) ir(enAdmin ? { nombre: 'admin-jugador', id: limpio.id } : { nombre: 'jugador-editar', id: limpio.id }, true)
       setJ({ ...limpio, contactos: limpio.contactos?.length ? limpio.contactos : [contactoVacio()] })
       setAviso(nuevo ? 'Jugador dado de alta.' : 'Cambios guardados.')
     }
@@ -538,8 +559,8 @@ export function AdminJugador({ id }: { id: string }) {
     <>
       <Cabecera
         titulo={nuevo ? 'Nuevo jugador' : `${original!.dorsal} · ${original!.nombre} ${original!.apellidos.split(' ')[0]}`}
-        sub={nuevo ? 'Alta en la plantilla' : j.archivado ? 'Archivado' : 'Edición del administrador'}
-        atras={() => volver({ nombre: 'admin' })}
+        sub={nuevo ? 'Alta en la plantilla' : j.archivado ? 'Archivado' : enAdmin ? 'Edición del administrador' : 'Edición del entrenador'}
+        atras={() => volver(salida)}
       />
 
       <div className="form">
@@ -740,7 +761,7 @@ export function AdminJugador({ id }: { id: string }) {
           </p>
         )}
         <div className="botones">
-          <button className="btn" onClick={() => volver({ nombre: 'admin' })}>
+          <button className="btn" onClick={() => volver(salida)}>
             Volver
           </button>
           <button className="btn primario crece" onClick={guardar} disabled={guardando}>
@@ -764,14 +785,17 @@ export function AdminJugador({ id }: { id: string }) {
             <button className="btn" onClick={() => exportarJugador(original.id)}>
               <Icon n="descargar" size={18} /> Exportar datos
             </button>
-            {!confirmarBorrar && (
+            {enAdmin && !confirmarBorrar && (
               <button className="btn peligro" onClick={() => setConfirmarBorrar(true)}>
                 <Icon n="papelera" size={18} /> Borrar todo
               </button>
             )}
           </div>
-          <p className="nota-pie">Archivar lo saca de la plantilla sin perder su historial (por ejemplo, si deja el equipo). Se puede recuperar.</p>
-          {confirmarBorrar && (
+          <p className="nota-pie">
+            Archivar lo saca de la plantilla sin perder su historial (por ejemplo, si deja el equipo). Se puede recuperar.
+            {!enAdmin && ' Si la familia pide borrar sus datos, avisa a un administrador del club: él hace el borrado completo.'}
+          </p>
+          {enAdmin && confirmarBorrar && (
             <div className="confirmar" role="alertdialog" aria-label="Confirmar borrado">
               <p>
                 Se borrarán para siempre la ficha, evaluaciones, pruebas, notas, estados, asistencia, minutos y carga de <strong>{original.nombre}</strong>. No se puede deshacer.
