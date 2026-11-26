@@ -28,6 +28,12 @@ const POR_DEFECTO = {
    * y verde como color principal) o 'vestuario' (oscura, celeste FutbolLab).
    */
   estiloVisual: 'cesped' as 'cesped' | 'vestuario',
+  /**
+   * Acabado "Premium" sobre "Césped" (estilo-premium.css): superficies con filo fino,
+   * menú lateral de altura completa, pestañas tipo pastilla y cromos limpios.
+   * Solo visual; desactivarlo devuelve "Césped" tal cual.
+   */
+  premium: true,
 }
 
 export type Flags = typeof POR_DEFECTO

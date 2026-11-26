@@ -7,6 +7,14 @@ Hay dos capas, las dos en `src/config.ts`:
    - **`'cesped'` (la activa):** `src/estilo-cesped.css`. Clara y deportiva: cabeceras de césped a franjas con las líneas del campo (Inicio, ficha y entrada), verde `#1F6F3A` como color principal y amarillo `#F2C230` solo para la acción estrella (Evaluar). Tarjetas blancas muy redondeadas con sombra suave. Barra superior y navegación en verde casi negro `#102018`; en móvil, la navegación es una píldora flotante. Tiene versión de noche si el usuario elige el tema oscuro.
    - **`'vestuario'`:** solo `estilo-v2.css`, oscura con el celeste FutbolLab.
 
+3. **Acabado "Premium":** `src/estilo-premium.css`, con `FLAGS.premium` (activo). Va el último, encima de "Césped", y solo cambia el aspecto. Sus reglas cuelgan de `html[data-pro]`.
+   - Referencias: Linear y Stripe (superficies con filo de 1 px y sombra mínima), Whoop y Oura (números protagonistas), Strava y FotMob (identidad deportiva contenida).
+   - Lienzo neutro cálido `#F5F6F3`, superficies blancas con filo `rgba(13,26,19,.075)`, radios 18 / 12 / 8 y controles de 44 px.
+   - Ordenador: el menú lateral en tinta `#0D1A13` sube hasta arriba con el logo y la barra superior pasa a ser clara, con el equipo en una pastilla.
+   - Pestañas y segmentados: pastilla blanca sobre pista gris. El verde queda para la acción principal y el amarillo para Evaluar.
+   - Cromos de la plantilla limpios (camiseta verde sobre un campo claro). El césped a franjas queda para las portadas de Inicio y de la ficha.
+   - Para quitarlo en un dispositivo: `localStorage.setItem('flags', JSON.stringify({ premium: false }))`.
+
 Para volver al diseño anterior en un dispositivo: `localStorage.setItem('flags', JSON.stringify({ disenoV2: false }))`. Para ver "Vestuario": `{ estiloVisual: 'vestuario' }`.
 
 Lo que sigue describe la base común. Las diferencias de color de "Césped" están en su propio archivo.

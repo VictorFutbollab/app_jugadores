@@ -369,7 +369,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.dataset.tema = tema
-    document.querySelector('meta[name=theme-color]')?.setAttribute('content', tema === 'oscuro' ? '#0E1C2A' : '#F2F5F7')
+    // Con el acabado premium, la barra del navegador del móvil toma el color de la barra superior
+    const colorBarra = FLAGS.premium && FLAGS.estiloVisual === 'cesped' ? (tema === 'oscuro' ? '#070F0A' : '#0D1A13') : tema === 'oscuro' ? '#0E1C2A' : '#F2F5F7'
+    document.querySelector('meta[name=theme-color]')?.setAttribute('content', colorBarra)
   }, [tema])
 
   const equipos = useMemo(() => [...(todo?.equipos ?? [])].sort((a, b) => a.nombre.localeCompare(b.nombre)), [todo])

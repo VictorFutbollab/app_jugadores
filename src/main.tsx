@@ -11,6 +11,7 @@ import './index.css'
 import './estilo-v2.css'
 import './estilo-cesped.css'
 import './estilo-pulido.css'
+import './estilo-premium.css'
 import App from './App'
 import { FLAGS } from './config'
 
@@ -18,6 +19,8 @@ import { FLAGS } from './config'
 if (FLAGS.disenoV2) {
   document.documentElement.dataset.estilo = 'v2'
   document.documentElement.dataset.visual = FLAGS.estiloVisual
+  // Acabado premium: solo sobre la capa "Césped"
+  if (FLAGS.premium && FLAGS.estiloVisual === 'cesped') document.documentElement.dataset.pro = ''
 }
 
 // Versión nueva publicada: el service worker nuevo toma el control (skipWaiting + clientsClaim)
