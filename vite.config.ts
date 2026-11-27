@@ -7,6 +7,9 @@ import { registroLocal } from './dev/registro-local.ts'
 // `npm run build`         → PWA instalable (dist/)
 // `npm run build:preview` → un solo HTML autocontenido para la vista previa (dist-preview/)
 export default defineConfig(({ mode }) => ({
+  // Rutas relativas: la app funciona igual en la raíz (Vercel) que en una subcarpeta
+  // del servidor de la empresa (p. ej. /appsfutbol/jugadores/).
+  base: './',
   plugins: [
     react(),
     registroLocal(), // solo en `npm run dev`: cuentas sin confirmar el email en localhost
@@ -21,7 +24,8 @@ export default defineConfig(({ mode }) => ({
             short_name: 'Jugadores',
             description: 'Ficha, evaluación y evolución de cada jugador',
             lang: 'es',
-            start_url: '/',
+            start_url: './',
+            scope: './',
             display: 'standalone',
             orientation: 'portrait',
             background_color: '#0E1C2A',
